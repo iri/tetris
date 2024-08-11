@@ -7,19 +7,26 @@
 #include <unistd.h>
 #include <windows.h>
 
-#define ITEMBLOCKPIX 30
-#define MAXITEMS 7
-#define MAXCOLORS 7
-#define ITEMBLOCKS 4
-
-typedef uint64_t MTIMER;
-void mtimer_start(MTIMER *t)
+typedef struct _ttimer
 {
-    *t = GetTickCount();
+    uint64_t last;
+    int ms;
+} tTimer;
+void timer_start(tTimer *t)
+{
+    t->last = GetTickCount();
 }
-MTIMER mtimer_check(MTIMER *t)
+uint64_t timer_check(tTimer *t)
 {
-    return GetTickCount() - *t;
+    return GetTickCount() - t->last;
+}
+bool is_timer_tick(tTimer *t)
+{
+    return (GetTickCount() - t->last) >= t->ms;
+}
+void timer_tick_finish(tTimer *t)
+{
+    t->last = GetTickCount();
 }
 
 typedef struct _tconfig
@@ -29,10 +36,78 @@ typedef struct _tconfig
     int x, y;
 } tConfig;
 
+#define MAXITEMS 7
+#define MAXCOLORS 7
+#define ITEMBLOCKS 4
+#define GLASS_W 14
+#define GLASS_H 28
+
+typedef enum
+{
+    /*
+    @startuml
+        [*] --> GAME_WELCOME
+        GAME_WELCOME --> GAME_STARTED
+        GAME_STARTED --> ITEM_STARTED
+        ITEM_STARTED --> BLOCKS_FALLING
+        BLOCKS_FALLING --> BLOCKS_FALLING_FAST
+        BLOCKS_FALLING --> BLOCKS_STOPPED
+        BLOCKS_FALLING_FAST --> BLOCKS_STOPPED
+        BLOCKS_STOPPED --> BLOCKS_FULLLINE_REMOVED
+        BLOCKS_FULLLINE_REMOVED --> BLOCKS_FALLING_FAST
+        BLOCKS_STOPPED --> ITEM_FINISHED
+        ITEM_FINISHED --> GAME_FINISHED
+        ITEM_FINISHED --> ITEM_STARTED
+        GAME_FINISHED --> GAME_WELCOME
+    @enduml
+     */
+    GAME_WELCOME,            // TIMER_FPS
+    GAME_STARTED,            // TIMER_FPS
+    ITEM_STARTED,            // TIMER_FPS
+    BLOCKS_FALLING,          // TIMER_1
+    BLOCKS_FALLING_FAST,     // TIMER_2
+    BLOCKS_STOPPED,          // TIMER_2
+    BLOCKS_FULLLINE_REMOVED, // TIMER_2
+    ITEM_FINISHED,           // TIMER_FPS
+    GAME_FINISHED            // TIMER_FPS
+} tGameState;
+
+const char *getGameState(tGameState state)
+{
+    switch (state)
+    {
+    case GAME_WELCOME:
+        return "GAME_WELCOME";
+    case GAME_STARTED:
+        return "GAME_STARTED";
+    case ITEM_STARTED:
+        return "ITEM_STARTED";
+    case BLOCKS_FALLING:
+        return "BLOCKS_FALLING";
+    case BLOCKS_FALLING_FAST:
+        return "BLOCKS_FALLING_FAST";
+    case BLOCKS_STOPPED:
+        return "BLOCKS_STOPPED";
+    case BLOCKS_FULLLINE_REMOVED:
+        return "BLOCKS_FULLLINE_REMOVED";
+    case ITEM_FINISHED:
+        return "ITEM_FINISHED";
+    case GAME_FINISHED:
+        return "GAME_FINISHED";
+    }
+    return "invalid status";
+}
+
 typedef struct _tstate
 {
     uint8_t colors[MAXCOLORS][3];
     int8_t items[MAXITEMS][ITEMBLOCKS * ITEMBLOCKS];
+    int fps;
+    int block_size;
+    tGameState GAME_STATE;
+    tTimer TIMER_FPS;
+    tTimer TIMER_1;
+    tTimer TIMER_2;
 } tState;
 
 void rotateMatrix(int8_t *mat)
@@ -126,7 +201,7 @@ bool parse_opt_arg_str(int argc, char **argv, int *ind, char *res, int len)
     return rc;
 }
 
-void parse_args(int argc, char **argv, tConfig *conf)
+void parse_args(int argc, char **argv, tConfig *conf, SDL_DisplayMode *DM)
 {
     int option;
     extern char *optarg;
@@ -167,24 +242,21 @@ void parse_args(int argc, char **argv, tConfig *conf)
                         conf->_b = 1;
                     }
                 }
-                SDL_DisplayMode DM;
-                SDL_GetCurrentDisplayMode(0, &DM);
-                printf("==  current    %d   %d   %d\n", DM.w, DM.h, DM.refresh_rate);
 
                 // fullscreen (desktop resolution)
                 if (conf->_f)
                 {
                     conf->x = 0;
                     conf->y = 0;
-                    conf->w = DM.w;
-                    conf->h = DM.h;
+                    conf->w = DM->w;
+                    conf->h = DM->h;
                 }
                 else
                 {
                     // left-right
                     if (conf->_l + conf->_r == 2 || conf->_l + conf->_r == 0)
                     {
-                        conf->x = (DM.w - conf->w) / 2;
+                        conf->x = (DM->w - conf->w) / 2;
                     }
                     else if (conf->_l)
                     {
@@ -192,13 +264,13 @@ void parse_args(int argc, char **argv, tConfig *conf)
                     }
                     else if (conf->_r)
                     {
-                        conf->x = DM.w - conf->w;
+                        conf->x = DM->w - conf->w;
                     }
 
                     // top-bottom
                     if (conf->_t + conf->_b == 2 || conf->_t + conf->_b == 0)
                     {
-                        conf->y = (DM.h - conf->h) / 2;
+                        conf->y = (DM->h - conf->h) / 2;
                     }
                     else if (conf->_t)
                     {
@@ -206,7 +278,7 @@ void parse_args(int argc, char **argv, tConfig *conf)
                     }
                     else if (conf->_b)
                     {
-                        conf->y = DM.h - conf->h;
+                        conf->y = DM->h - conf->h;
                     }
                 }
                 printf("==  x : %d     y : %d\n", conf->x, conf->y);
@@ -235,7 +307,7 @@ void parse_args(int argc, char **argv, tConfig *conf)
 
 void drawItem(SDL_Renderer *rend, int x, int y, tState *ST, int item)
 {
-    SDL_Rect rect = {x, y, ITEMBLOCKPIX, ITEMBLOCKPIX};
+    SDL_Rect rect = {x, y, ST->block_size, ST->block_size};
     int e;
     for (int8_t i = 0; i < ITEMBLOCKS; i++)
     {
@@ -243,226 +315,326 @@ void drawItem(SDL_Renderer *rend, int x, int y, tState *ST, int item)
         {
             e = ST->items[item][i * ITEMBLOCKS + j];
             SDL_SetRenderDrawColor(rend, ST->colors[e][0], ST->colors[e][1], ST->colors[e][2], 255);
-            rect.y = y + i * ITEMBLOCKPIX;
-            rect.x = x + j * ITEMBLOCKPIX;
+            rect.y = y + i * ST->block_size;
+            rect.x = x + j * ST->block_size;
             SDL_RenderFillRect(rend, &rect);
         }
     }
 }
+void drawGlass(SDL_Renderer *rend, tState *ST, tConfig *conf)
+{
+    int sw = GLASS_W * ST->block_size;
+    int sh = GLASS_H * ST->block_size;
+    int sx = (conf->w - sw) / 2;
+    int sy = (conf->h - sh) / 2;
+    SDL_Rect rect = {sx, sy, sw, sh};
+    SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
+    SDL_RenderFillRect(rend, &rect);
+}
 
 int main(int argc, char **argv)
 {
+
     tConfig CONF;
     memset(&CONF, 0, sizeof(CONF));
 
-    tState ST = {
-        .colors = {{0, 0, 0},                                        // transparent
-                   {228, 26, 28},                                    // red
-                   {255, 255, 51},                                   // yellow
-                   {255, 127, 0},                                    // orange
-                   {77, 175, 74},                                    // green
-                   {152, 78, 163},                                   // violet
-                   {80, 80, 80}},                                    // gray
-        .items = {{0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0},  // I
-                  {0, 0, 0, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 0, 0, 0},  // O
-                  {0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 3, 3, 0},  // L
-                  {0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 3, 3, 0},  // J
-                  {0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 4, 0, 0, 0, 4, 0},  // S
-                  {0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 0},  // 4
-                  {0, 0, 0, 0, 0, 5, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0}}, // T
-        .fps = 60;
-};
+    /* Initializes the timer, audio, video, joystick,
+    haptic, gamecontroller and events subsystems */
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+    {
+        printf("Error initializing SDL: %s\n", SDL_GetError());
+        return 0;
+    }
 
-for (int i = 0; i < MAXITEMS; i++)
-{
-    printf("\n");
-    printMatrix(ST.items[i]);
-    rotateMatrix(ST.items[i]);
-    printMatrix(ST.items[i]);
-}
+    // Acquire display parameters
+    int nDispModes = SDL_GetNumDisplayModes(0);
 
-/* Initializes the timer, audio, video, joystick,
-haptic, gamecontroller and events subsystems */
-if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
-{
-    printf("Error initializing SDL: %s\n", SDL_GetError());
-    return 0;
-}
+    SDL_DisplayMode DM;
 
-// Acquire display parameters
-int nDispModes = SDL_GetNumDisplayModes(0);
+    for (int i = 0; i < nDispModes; i++)
+    {
+        SDL_GetDisplayMode(0, i, &DM);
+        int w = DM.w;
+        int h = DM.h;
+        int rr = DM.refresh_rate;
+        printf("==   %d         %d   %d   %d\n", i, w, h, rr);
+    }
 
-SDL_DisplayMode DM;
+    SDL_GetCurrentDisplayMode(0, &DM);
+    printf("==  current    %d   %d   %d\n", DM.w, DM.h, DM.refresh_rate);
 
-for (int i = 0; i < nDispModes; i++)
-{
-    SDL_GetDisplayMode(0, i, &DM);
-    int w = DM.w;
-    int h = DM.h;
-    int rr = DM.refresh_rate;
-    printf("==   %d         %d   %d   %d\n", i, w, h, rr);
-}
+    // Parse command line arguments
+    parse_args(argc, argv, &CONF, &DM);
 
-// Parse command line arguments
-parse_args(argc, argv, &CONF);
+    tState ST = {.colors = {{0, 0, 0},                                        // transparent
+                            {228, 26, 28},                                    // red
+                            {255, 255, 51},                                   // yellow
+                            {255, 127, 0},                                    // orange
+                            {77, 175, 74},                                    // green
+                            {152, 78, 163},                                   // violet
+                            {80, 80, 80}},                                    // gray
+                 .items = {{0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0},  // I
+                           {0, 0, 0, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 0, 0, 0},  // O
+                           {0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 3, 3, 0},  // L
+                           {0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 3, 3, 0},  // J
+                           {0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 4, 0, 0, 0, 4, 0},  // S
+                           {0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 0},  // 4
+                           {0, 0, 0, 0, 0, 5, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0}}, // T
+                 .fps = 60,
+                 .block_size = 25,
+                 .GAME_STATE = GAME_WELCOME,
+                 .TIMER_FPS = {0, 1000 / ST.fps},
+                 .TIMER_1 = {0, 1000},
+                 .TIMER_2 = {0, 100}};
 
-/* Create a window */
-uint32_t flags = 0;
-if (CONF._f)
-{
-    flags = flags | SDL_WINDOW_FULLSCREEN_DESKTOP;
-}
-SDL_Window *wind = SDL_CreateWindow("Shell0", CONF.x, CONF.y, CONF.w, CONF.h, flags);
-if (!wind)
-{
-    printf("Error creating window: %s\n", SDL_GetError());
-    SDL_Quit();
-    return 0;
-}
+    /* Create a window */
+    uint32_t flags = 0;
+    if (CONF._f)
+    {
+        // flags = flags | SDL_WINDOW_FULLSCREEN_DESKTOP;
+        flags = flags | SDL_WINDOW_FULLSCREEN;
+    }
+    SDL_Window *wind = SDL_CreateWindow("Shell0", CONF.x, CONF.y, CONF.w, CONF.h, flags);
+    if (!wind)
+    {
+        printf("Error creating window: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 0;
+    }
 
-/* Create a renderer */
-Uint32 render_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
-SDL_Renderer *rend = SDL_CreateRenderer(wind, -1, render_flags);
-if (!rend)
-{
-    printf("Error creating renderer: %s\n", SDL_GetError());
+    /* Create a renderer */
+    Uint32 render_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
+    SDL_Renderer *rend = SDL_CreateRenderer(wind, -1, render_flags);
+    if (!rend)
+    {
+        printf("Error creating renderer: %s\n", SDL_GetError());
+        SDL_DestroyWindow(wind);
+        SDL_Quit();
+        return 0;
+    }
+    /* Main loop */
+    bool running = true;
+    bool put_pressed = false, left_pressed = false, right_pressed = false, up_pressed = false;
+    bool put_processed = false, left_processed = false, right_processed = false, up_processed = false;
+    SDL_Rect rectScr = {0, 0, CONF.w, CONF.h};
+    SDL_Event event;
+
+    int x = 50;
+    int y = 50;
+
+    timer_start(&ST.TIMER_FPS);
+    timer_start(&ST.TIMER_1);
+    timer_start(&ST.TIMER_2);
+
+    while (running)
+    {
+        /* Process events */
+        while (SDL_PollEvent(&event))
+        {
+            switch (event.type)
+            {
+            case SDL_QUIT:
+                running = false;
+                break;
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.scancode)
+                {
+                case SDL_SCANCODE_Q:
+                    running = false;
+                    break;
+                case SDL_SCANCODE_SPACE:
+                    put_pressed = true;
+                    break;
+                case SDL_SCANCODE_A:
+                case SDL_SCANCODE_LEFT:
+                    left_pressed = true;
+                    break;
+                case SDL_SCANCODE_D:
+                case SDL_SCANCODE_RIGHT:
+                    right_pressed = true;
+                    break;
+                case SDL_SCANCODE_W:
+                case SDL_SCANCODE_UP:
+                    up_pressed = true;
+                    break;
+                default:
+                    break;
+                }
+                break;
+            case SDL_KEYUP:
+                switch (event.key.keysym.scancode)
+                {
+                case SDL_SCANCODE_SPACE:
+                    put_pressed = false;
+                    put_processed = false;
+                    break;
+                case SDL_SCANCODE_A:
+                case SDL_SCANCODE_LEFT:
+                    left_pressed = false;
+                    left_processed = false;
+                    break;
+                case SDL_SCANCODE_D:
+                case SDL_SCANCODE_RIGHT:
+                    right_pressed = false;
+                    right_processed = false;
+                    break;
+                case SDL_SCANCODE_W:
+                case SDL_SCANCODE_UP:
+                    up_pressed = false;
+                    up_processed = false;
+                    break;
+                default:
+                    break;
+                }
+                break;
+            default:
+                break;
+            }
+        }
+
+        // Processing
+        // TIMER_FPS handling (1000/60 ms)
+        if (is_timer_tick(&ST.TIMER_FPS))
+        {
+
+            printf("%s\n", getGameState(ST.GAME_STATE));
+            switch (ST.GAME_STATE)
+            {
+            case GAME_WELCOME: // TIMER_FPS
+                break;
+            case GAME_STARTED: // TIMER_FPS
+                break;
+            case ITEM_STARTED: // TIMER_FPS
+                break;
+            case BLOCKS_FALLING: // TIMER_1
+                break;
+            case BLOCKS_FALLING_FAST: // TIMER_2
+                break;
+            case BLOCKS_STOPPED: // TIMER_2
+                break;
+            case BLOCKS_FULLLINE_REMOVED: // TIMER_2
+                break;
+            case ITEM_FINISHED: // TIMER_FPS
+                break;
+            case GAME_FINISHED: // TIMER_FPS
+                break;
+            }
+
+            if (!up_processed)
+            {
+                for (int i = 0; i < MAXITEMS; i++)
+                {
+                    rotateMatrix(ST.items[i]);
+                }
+                up_processed = true;
+            }
+            if (!left_processed)
+            {
+                x -= ST.block_size;
+                left_processed = true;
+            }
+            if (!right_processed)
+            {
+                x += ST.block_size;
+                ;
+                right_processed = true;
+            }
+            if (!put_processed)
+            {
+                y += ST.block_size;
+                ;
+                put_processed = true;
+            }
+
+            /* Clear screen */
+            SDL_SetRenderDrawColor(rend, ST.colors[6][0], ST.colors[6][1], ST.colors[6][2], 255);
+            SDL_RenderFillRect(rend, &rectScr);
+
+            /* Draw glass */
+            drawGlass(rend, &ST, &CONF);
+
+            /* Draw blocks */
+            drawItem(rend, x + 50, y, &ST, 0);
+            drawItem(rend, x + 200, y, &ST, 1);
+            drawItem(rend, x + 350, y, &ST, 2);
+            drawItem(rend, x + 500, y, &ST, 3);
+            drawItem(rend, x + 650, y, &ST, 4);
+            drawItem(rend, x + 800, y, &ST, 5);
+            drawItem(rend, x + 950, y, &ST, 6);
+
+            /* Draw to window and loop */
+            SDL_RenderPresent(rend);
+
+            timer_tick_finish(&ST.TIMER_FPS);
+
+            // TIMER_1 handling (1000 ms)
+            if (is_timer_tick(&ST.TIMER_1))
+            {
+                printf("%s\n", getGameState(ST.GAME_STATE));
+                switch (ST.GAME_STATE)
+                {
+                case GAME_WELCOME: // TIMER_FPS
+                    break;
+                case GAME_STARTED: // TIMER_FPS
+                    break;
+                case ITEM_STARTED: // TIMER_FPS
+                    break;
+                case BLOCKS_FALLING: // TIMER_1
+                    break;
+                case BLOCKS_FALLING_FAST: // TIMER_2
+                    break;
+                case BLOCKS_STOPPED: // TIMER_2
+                    break;
+                case BLOCKS_FULLLINE_REMOVED: // TIMER_2
+                    break;
+                case ITEM_FINISHED: // TIMER_FPS
+                    break;
+                case GAME_FINISHED: // TIMER_FPS
+                    break;
+                }
+
+                y += ST.block_size;
+                timer_tick_finish(&ST.TIMER_1);
+            }
+
+            // TIMER_2 handling (100 ms)
+            if (is_timer_tick(&ST.TIMER_2))
+            {
+                printf("%s\n", getGameState(ST.GAME_STATE));
+                switch (ST.GAME_STATE)
+                {
+                case GAME_WELCOME: // TIMER_FPS
+                    break;
+                case GAME_STARTED: // TIMER_FPS
+                    break;
+                case ITEM_STARTED: // TIMER_FPS
+                    break;
+                case BLOCKS_FALLING: // TIMER_1
+                    break;
+                case BLOCKS_FALLING_FAST: // TIMER_2
+                    break;
+                case BLOCKS_STOPPED: // TIMER_2
+                    break;
+                case BLOCKS_FULLLINE_REMOVED: // TIMER_2
+                    break;
+                case ITEM_FINISHED: // TIMER_FPS
+                    break;
+                case GAME_FINISHED: // TIMER_FPS
+                    break;
+                }
+
+                timer_tick_finish(&ST.TIMER_2);
+            }
+        }
+        else
+        {
+            SDL_Delay(1);
+        }
+    }
+
+    /* Release resources */
+    SDL_DestroyRenderer(rend);
     SDL_DestroyWindow(wind);
     SDL_Quit();
     return 0;
-}
-/* Main loop */
-bool running = true;
-bool put_pressed = false, left_pressed = false, right_pressed = false, up_pressed = false;
-bool put_processed = false, left_processed = false, right_processed = false, up_processed = false;
-SDL_Rect rectScr = {0, 0, CONF.w, CONF.h};
-SDL_Event event;
-
-int TICK_MS = 1000;
-
-int x = 50;
-int y = 50;
-
-MTIMER t;
-mtimer_start(&t);
-
-while (running)
-{
-    /* Process events */
-    while (SDL_PollEvent(&event))
-    {
-        switch (event.type)
-        {
-        case SDL_QUIT:
-            running = false;
-            break;
-        case SDL_KEYDOWN:
-            switch (event.key.keysym.scancode)
-            {
-            case SDL_SCANCODE_Q:
-                running = false;
-                break;
-            case SDL_SCANCODE_SPACE:
-                put_pressed = true;
-                break;
-            case SDL_SCANCODE_A:
-            case SDL_SCANCODE_LEFT:
-                left_pressed = true;
-                break;
-            case SDL_SCANCODE_D:
-            case SDL_SCANCODE_RIGHT:
-                right_pressed = true;
-                break;
-            case SDL_SCANCODE_W:
-            case SDL_SCANCODE_UP:
-                up_pressed = true;
-                break;
-            default:
-                break;
-            }
-            break;
-        case SDL_KEYUP:
-            switch (event.key.keysym.scancode)
-            {
-            case SDL_SCANCODE_SPACE:
-                put_pressed = false;
-                put_processed = false;
-                break;
-            case SDL_SCANCODE_A:
-            case SDL_SCANCODE_LEFT:
-                left_pressed = false;
-                left_processed = false;
-                break;
-            case SDL_SCANCODE_D:
-            case SDL_SCANCODE_RIGHT:
-                right_pressed = false;
-                right_processed = false;
-                break;
-            case SDL_SCANCODE_W:
-            case SDL_SCANCODE_UP:
-                up_pressed = false;
-                up_processed = false;
-                break;
-            default:
-                break;
-            }
-            break;
-        default:
-            break;
-        }
-    }
-
-    if (!up_processed)
-    {
-        for (int i = 0; i < MAXITEMS; i++)
-        {
-            rotateMatrix(ST.items[i]);
-        }
-        up_processed = true;
-    }
-    if (!left_processed)
-    {
-        x -= 50;
-        left_processed = true;
-    }
-    if (!right_processed)
-    {
-        x += 50;
-        right_processed = true;
-    }
-    if (!put_processed)
-    {
-        y += 50;
-        put_processed = true;
-    }
-
-    if (mtimer_check(&t) >= TICK_MS)
-    {
-        printf("Tick : %I64u\n", mtimer_check(&t));
-        mtimer_start(&t);
-    }
-
-    /* Clear screen */
-    SDL_SetRenderDrawColor(rend, ST.colors[6][0], ST.colors[6][1], ST.colors[6][2], 255);
-    SDL_RenderFillRect(rend, &rectScr);
-
-    /* Draw scene */
-    drawItem(rend, x + 50, y, &ST, 0);
-    drawItem(rend, x + 200, y, &ST, 1);
-    drawItem(rend, x + 350, y, &ST, 2);
-    drawItem(rend, x + 500, y, &ST, 3);
-    drawItem(rend, x + 650, y, &ST, 4);
-    drawItem(rend, x + 800, y, &ST, 5);
-    drawItem(rend, x + 950, y, &ST, 6);
-
-    /* Draw to window and loop */
-    SDL_RenderPresent(rend);
-    // printf("%d  %d  %d  %d\n", left_pressed, right_pressed, up_pressed, put_pressed);
-    SDL_Delay(1000 / ST.fps);
-}
-
-/* Release resources */
-SDL_DestroyRenderer(rend);
-SDL_DestroyWindow(wind);
-SDL_Quit();
-return 0;
 }

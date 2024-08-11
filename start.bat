@@ -1,1 +1,1 @@
-main.exe -d 1200 600 -r  
+main.exe -d 1200 800 -r  
