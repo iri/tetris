@@ -108,6 +108,17 @@ typedef struct _tstate
     tTimer TIMER_FPS;
     tTimer TIMER_1;
     tTimer TIMER_2;
+    int ITEM_ID;
+    int glass_x;
+    int glass_y;
+    int glass_w;
+    int glass_h;
+    uint8_t glass[GLASS_H][GLASS_W];
+    int x, y;
+    int gx, gy;
+    int8_t marg_left;
+    int8_t marg_right;
+    int8_t marg_bottom[ITEMBLOCKS];
 } tState;
 
 void rotateMatrix(int8_t *mat)
@@ -149,6 +160,89 @@ void printMatrix(int8_t *mat)
             printf("%d ", mat[i * ITEMBLOCKS + j]);
         }
         printf("\n");
+    }
+}
+
+void getBottomMargins(tState *ST)
+{
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        for (ST->marg_bottom[i] = ITEMBLOCKS - 1; ST->marg_bottom[i] >= 0; ST->marg_bottom[i]--)
+        {
+            if (ST->items[ST->ITEM_ID][ST->marg_bottom[i] * ITEMBLOCKS + i] > 0)
+            {
+                break;
+            }
+        }
+    }
+}
+
+void getMargins(int8_t *mat, int8_t *marg_left, int8_t *marg_right)
+{
+    uint8_t sum;
+    *marg_left = 0;
+    *marg_right = 0;
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        sum = 0;
+        for (int j = 0; j < ITEMBLOCKS; j++)
+        {
+            sum += mat[j * ITEMBLOCKS + i];
+        }
+        if (sum == 0)
+        {
+            ++*marg_left;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    for (int i = ITEMBLOCKS - 1; i >= 0; i--)
+    {
+        sum = 0;
+        for (int j = 0; j < ITEMBLOCKS; j++)
+        {
+            sum += mat[j * ITEMBLOCKS + i];
+        }
+        if (sum == 0)
+        {
+            ++*marg_right;
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+
+bool checkItemBottomTouch(tState *ST)
+{
+
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        if (ST->gy + ST->marg_bottom[i] + 2 > GLASS_H)
+        // || ST->glass[ST->gy + ST->marg_bottom[i] + 2][ST->gx + i] > 0
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void copyBlocksToGlass(tState *ST)
+{
+    // copy stopped item blocks to glass
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        for (int j = 0; j < ITEMBLOCKS; j++)
+        {
+            if (ST->items[ST->ITEM_ID][j * ITEMBLOCKS + i] > 0)
+            {
+                ST->glass[ST->gy + j][ST->gx + i] = ST->items[ST->ITEM_ID][j * ITEMBLOCKS + i];
+            }
+        }
     }
 }
 
@@ -314,22 +408,66 @@ void drawItem(SDL_Renderer *rend, int x, int y, tState *ST, int item)
         for (int8_t j = 0; j < ITEMBLOCKS; j++)
         {
             e = ST->items[item][i * ITEMBLOCKS + j];
-            SDL_SetRenderDrawColor(rend, ST->colors[e][0], ST->colors[e][1], ST->colors[e][2], 255);
-            rect.y = y + i * ST->block_size;
-            rect.x = x + j * ST->block_size;
+            if (e > 0)
+            {
+                rect.y = y + i * ST->block_size;
+                rect.x = x + j * ST->block_size;
+                SDL_SetRenderDrawColor(rend, ST->colors[e][0], ST->colors[e][1], ST->colors[e][2], 255);
+                SDL_RenderFillRect(rend, &rect);
+            }
+        }
+    }
+
+    rect.w = ST->block_size - 20;
+    rect.h = ST->block_size - 20;
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        if (ST->marg_bottom[i] > -1)
+        {
+            rect.y = ST->y + ST->marg_bottom[i] * ST->block_size + 10;
+            rect.x = ST->x + i * ST->block_size + 10;
+            SDL_SetRenderDrawColor(rend, 255, 0, 0, 255);
             SDL_RenderFillRect(rend, &rect);
         }
     }
 }
+
 void drawGlass(SDL_Renderer *rend, tState *ST, tConfig *conf)
 {
-    int sw = GLASS_W * ST->block_size;
-    int sh = GLASS_H * ST->block_size;
-    int sx = (conf->w - sw) / 2;
-    int sy = (conf->h - sh) / 2;
-    SDL_Rect rect = {sx, sy, sw, sh};
+    SDL_Rect rect = {ST->glass_x, ST->glass_y, ST->glass_w, ST->glass_h};
     SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
     SDL_RenderFillRect(rend, &rect);
+
+    // printf("\n\n");
+    for (int i = 0; i < GLASS_H; i++)
+    {
+        for (int j = 0; j < GLASS_W; j++)
+        {
+            int e = ST->glass[i][j];
+            // printf("%d ", e);
+            if (e > 0)
+            {
+                rect.w = ST->block_size;
+                rect.h = ST->block_size;
+                rect.y = ST->glass_y + i * ST->block_size;
+                rect.x = ST->glass_x + j * ST->block_size;
+                SDL_SetRenderDrawColor(rend, ST->colors[e][0], ST->colors[e][1], ST->colors[e][2], 255);
+                SDL_RenderFillRect(rend, &rect);
+            }
+        }
+        // printf("\n");
+    }
+}
+
+void clearGlass(tState *ST)
+{
+    for (int i = 0; i < GLASS_H; i++)
+    {
+        for (int j = 0; j < GLASS_W; j++)
+        {
+            ST->glass[i][j] = 0;
+        }
+    }
 }
 
 int main(int argc, char **argv)
@@ -366,26 +504,48 @@ int main(int argc, char **argv)
     // Parse command line arguments
     parse_args(argc, argv, &CONF, &DM);
 
-    tState ST = {.colors = {{0, 0, 0},                                        // transparent
-                            {228, 26, 28},                                    // red
-                            {255, 255, 51},                                   // yellow
-                            {255, 127, 0},                                    // orange
-                            {77, 175, 74},                                    // green
-                            {152, 78, 163},                                   // violet
-                            {80, 80, 80}},                                    // gray
-                 .items = {{0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0},  // I
-                           {0, 0, 0, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 0, 0, 0},  // O
-                           {0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 3, 3, 0},  // L
-                           {0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 3, 3, 0},  // J
-                           {0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 4, 0, 0, 0, 4, 0},  // S
-                           {0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 0},  // 4
-                           {0, 0, 0, 0, 0, 5, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0}}, // T
+    tState ST = {.colors = {{0, 0, 0},      // transparent
+                            {228, 26, 28},  // red
+                            {255, 255, 51}, // yellow
+                            {255, 127, 0},  // orange
+                            {77, 175, 74},  // green
+                            {152, 78, 163}, // violet
+                            {80, 80, 80}},  // gray
+                 .items = {{0, 1, 0, 0,     //
+                            0, 1, 0, 0,     //
+                            0, 1, 0, 0,     //
+                            0, 1, 0, 0},    // I
+                           {0, 0, 0, 0,     //
+                            0, 2, 2, 0,     //
+                            0, 2, 2, 0,     //
+                            0, 0, 0, 0},    // O
+                           {0, 0, 0, 0,     //
+                            0, 3, 0, 0,     //
+                            0, 3, 0, 0,     //
+                            0, 3, 3, 0},    // L
+                           {0, 0, 0, 0,     //
+                            0, 0, 3, 0,     //
+                            0, 0, 3, 0,     //
+                            0, 3, 3, 0},    // J
+                           {0, 0, 0, 0,     //
+                            0, 4, 0, 0,     //
+                            0, 4, 4, 0,     //
+                            0, 0, 4, 0},    // S
+                           {0, 0, 0, 0,     //
+                            0, 0, 4, 0,     //
+                            0, 4, 4, 0,     //
+                            0, 4, 0, 0},    // 4
+                           {0, 0, 0, 0,     //
+                            0, 5, 0, 0,     //
+                            5, 5, 5, 0,     //
+                            0, 0, 0, 0}},   // T
                  .fps = 60,
                  .block_size = 25,
                  .GAME_STATE = GAME_WELCOME,
                  .TIMER_FPS = {0, 1000 / ST.fps},
-                 .TIMER_1 = {0, 1000},
-                 .TIMER_2 = {0, 100}};
+                 .TIMER_1 = {0, 200},
+                 .TIMER_2 = {0, 100},
+                 .ITEM_ID = -1};
 
     /* Create a window */
     uint32_t flags = 0;
@@ -419,8 +579,10 @@ int main(int argc, char **argv)
     SDL_Rect rectScr = {0, 0, CONF.w, CONF.h};
     SDL_Event event;
 
-    int x = 50;
-    int y = 50;
+    ST.glass_w = GLASS_W * ST.block_size;
+    ST.glass_h = GLASS_H * ST.block_size;
+    ST.glass_x = (CONF.w - ST.glass_w) / 2;
+    ST.glass_y = (CONF.h - ST.glass_h) / 2;
 
     timer_start(&ST.TIMER_FPS);
     timer_start(&ST.TIMER_1);
@@ -496,77 +658,7 @@ int main(int argc, char **argv)
         // TIMER_FPS handling (1000/60 ms)
         if (is_timer_tick(&ST.TIMER_FPS))
         {
-
-            printf("%s\n", getGameState(ST.GAME_STATE));
-            switch (ST.GAME_STATE)
-            {
-            case GAME_WELCOME: // TIMER_FPS
-                break;
-            case GAME_STARTED: // TIMER_FPS
-                break;
-            case ITEM_STARTED: // TIMER_FPS
-                break;
-            case BLOCKS_FALLING: // TIMER_1
-                break;
-            case BLOCKS_FALLING_FAST: // TIMER_2
-                break;
-            case BLOCKS_STOPPED: // TIMER_2
-                break;
-            case BLOCKS_FULLLINE_REMOVED: // TIMER_2
-                break;
-            case ITEM_FINISHED: // TIMER_FPS
-                break;
-            case GAME_FINISHED: // TIMER_FPS
-                break;
-            }
-
-            if (!up_processed)
-            {
-                for (int i = 0; i < MAXITEMS; i++)
-                {
-                    rotateMatrix(ST.items[i]);
-                }
-                up_processed = true;
-            }
-            if (!left_processed)
-            {
-                x -= ST.block_size;
-                left_processed = true;
-            }
-            if (!right_processed)
-            {
-                x += ST.block_size;
-                ;
-                right_processed = true;
-            }
-            if (!put_processed)
-            {
-                y += ST.block_size;
-                ;
-                put_processed = true;
-            }
-
-            /* Clear screen */
-            SDL_SetRenderDrawColor(rend, ST.colors[6][0], ST.colors[6][1], ST.colors[6][2], 255);
-            SDL_RenderFillRect(rend, &rectScr);
-
-            /* Draw glass */
-            drawGlass(rend, &ST, &CONF);
-
-            /* Draw blocks */
-            drawItem(rend, x + 50, y, &ST, 0);
-            drawItem(rend, x + 200, y, &ST, 1);
-            drawItem(rend, x + 350, y, &ST, 2);
-            drawItem(rend, x + 500, y, &ST, 3);
-            drawItem(rend, x + 650, y, &ST, 4);
-            drawItem(rend, x + 800, y, &ST, 5);
-            drawItem(rend, x + 950, y, &ST, 6);
-
-            /* Draw to window and loop */
-            SDL_RenderPresent(rend);
-
-            timer_tick_finish(&ST.TIMER_FPS);
-
+            // Process slow timers
             // TIMER_1 handling (1000 ms)
             if (is_timer_tick(&ST.TIMER_1))
             {
@@ -580,10 +672,27 @@ int main(int argc, char **argv)
                 case ITEM_STARTED: // TIMER_FPS
                     break;
                 case BLOCKS_FALLING: // TIMER_1
+
+                    printf("%d\t%d\t%d\t%d\n", ST.marg_bottom[0], ST.marg_bottom[1], ST.marg_bottom[2],
+                           ST.marg_bottom[3]);
+
+                    if (checkItemBottomTouch(&ST))
+                    {
+                        copyBlocksToGlass(&ST);
+                        printf("stopped\n");
+                        ST.GAME_STATE = BLOCKS_STOPPED;
+                    }
+                    else
+                    {
+                        ST.y += ST.block_size;
+                        ST.gx = (ST.x - ST.glass_x) / ST.block_size;
+                        ST.gy = (ST.y - ST.glass_y) / ST.block_size;
+                    }
                     break;
                 case BLOCKS_FALLING_FAST: // TIMER_2
                     break;
                 case BLOCKS_STOPPED: // TIMER_2
+                    ST.GAME_STATE = ITEM_STARTED;
                     break;
                 case BLOCKS_FULLLINE_REMOVED: // TIMER_2
                     break;
@@ -593,14 +702,13 @@ int main(int argc, char **argv)
                     break;
                 }
 
-                y += ST.block_size;
                 timer_tick_finish(&ST.TIMER_1);
             }
 
             // TIMER_2 handling (100 ms)
             if (is_timer_tick(&ST.TIMER_2))
             {
-                printf("%s\n", getGameState(ST.GAME_STATE));
+                // printf("%s\n", getGameState(ST.GAME_STATE));
                 switch (ST.GAME_STATE)
                 {
                 case GAME_WELCOME: // TIMER_FPS
@@ -625,6 +733,111 @@ int main(int argc, char **argv)
 
                 timer_tick_finish(&ST.TIMER_2);
             }
+
+            // Process FPS timer
+            /* Clear screen */
+            SDL_SetRenderDrawColor(rend, ST.colors[6][0], ST.colors[6][1], ST.colors[6][2], 255);
+            SDL_RenderFillRect(rend, &rectScr);
+
+            /* Draw glass */
+            drawGlass(rend, &ST, &CONF);
+
+            // printf("%s\n", getGameState(ST.GAME_STATE));
+            switch (ST.GAME_STATE)
+            {
+            case GAME_WELCOME: // TIMER_FPS
+                if (put_pressed && !put_processed)
+                {
+                    ST.GAME_STATE = GAME_STARTED;
+                    put_processed = true;
+                }
+                break;
+            case GAME_STARTED: // TIMER_FPS
+                clearGlass(&ST);
+                ST.GAME_STATE = ITEM_STARTED;
+                break;
+            case ITEM_STARTED:  // TIMER_FPS
+                ST.ITEM_ID = 4; // rand() % 7;
+                ST.x = (CONF.w - ITEMBLOCKS * ST.block_size) / 2;
+                ST.y = ITEMBLOCKS * ST.block_size / 2;
+                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+                getMargins(ST.items[ST.ITEM_ID], &ST.marg_left, &ST.marg_right);
+                getBottomMargins(&ST);
+                SDL_Delay(500);
+                ST.GAME_STATE = BLOCKS_FALLING;
+                break;
+            case BLOCKS_FALLING: // TIMER_1
+                if (left_pressed && !left_processed)
+                {
+                    if (ST.x - ST.glass_x + ST.marg_left * ST.block_size > 0)
+                    {
+                        ST.x -= ST.block_size;
+                    }
+                    left_processed = true;
+                }
+                if (right_pressed && !right_processed)
+                {
+                    if (ST.glass_x + ST.glass_w - ST.x - (ITEMBLOCKS - ST.marg_right) * ST.block_size > 0)
+                    {
+                        ST.x += ST.block_size;
+                    }
+                    right_processed = true;
+                }
+                if (up_pressed && !up_processed)
+                {
+                    rotateMatrix(ST.items[ST.ITEM_ID]);
+                    getMargins(ST.items[ST.ITEM_ID], &ST.marg_left, &ST.marg_right);
+                    getBottomMargins(&ST);
+                    up_processed = true;
+                }
+                if (put_pressed && !put_processed)
+                {
+                    ST.GAME_STATE = BLOCKS_FALLING_FAST;
+                    put_processed = true;
+                }
+                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+                break;
+            case BLOCKS_FALLING_FAST: // TIMER_2
+                if (left_pressed && !left_processed)
+                {
+                    if (ST.x - ST.glass_x + ST.marg_left * ST.block_size > 0)
+                    {
+                        ST.x -= ST.block_size;
+                    }
+                    left_processed = true;
+                }
+                if (right_pressed && !right_processed)
+                {
+                    if (ST.glass_x + ST.glass_w - ST.x - (ITEMBLOCKS - ST.marg_right) * ST.block_size > 0)
+                    {
+                        ST.x += ST.block_size;
+                    }
+                    right_processed = true;
+                }
+                if (up_pressed && !up_processed)
+                {
+                    rotateMatrix(ST.items[ST.ITEM_ID]);
+                    getMargins(ST.items[ST.ITEM_ID], &ST.marg_left, &ST.marg_right);
+                    getBottomMargins(&ST);
+                    up_processed = true;
+                }
+                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+                break;
+            case BLOCKS_STOPPED: // TIMER_2
+                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+                break;
+            case BLOCKS_FULLLINE_REMOVED: // TIMER_2
+                break;
+            case ITEM_FINISHED: // TIMER_FPS
+                break;
+            case GAME_FINISHED: // TIMER_FPS
+                break;
+            }
+
+            /* Draw to window and loop */
+            SDL_RenderPresent(rend);
+
+            timer_tick_finish(&ST.TIMER_FPS);
         }
         else
         {
