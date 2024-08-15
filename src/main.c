@@ -177,11 +177,12 @@ void getBottomMargins(tState *ST)
     }
 }
 
-void getMargins(int8_t *mat, int8_t *marg_left, int8_t *marg_right)
+void getMargins(tState *ST)
 {
     uint8_t sum;
-    *marg_left = 0;
-    *marg_right = 0;
+    int8_t *mat = ST->items[ST->ITEM_ID];
+    ST->marg_left = 0;
+    ST->marg_right = 0;
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
         sum = 0;
@@ -191,7 +192,7 @@ void getMargins(int8_t *mat, int8_t *marg_left, int8_t *marg_right)
         }
         if (sum == 0)
         {
-            ++*marg_left;
+            ++ST->marg_left;
         }
         else
         {
@@ -208,7 +209,7 @@ void getMargins(int8_t *mat, int8_t *marg_left, int8_t *marg_right)
         }
         if (sum == 0)
         {
-            ++*marg_right;
+            ++ST->marg_right;
         }
         else
         {
@@ -222,8 +223,9 @@ bool checkItemBottomTouch(tState *ST)
 
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
-        if (ST->gy + ST->marg_bottom[i] + 2 > GLASS_H)
-        // || ST->glass[ST->gy + ST->marg_bottom[i] + 2][ST->gx + i] > 0
+        printf("===   %d    %d    %d\n", ST->gy + ST->marg_bottom[i] + 2 > GLASS_H,
+               ST->glass[ST->gy + ST->marg_bottom[i] + 1][ST->gx + i] > 0, ST->gy);
+        if (ST->gy + ST->marg_bottom[i] + 2 > GLASS_H || ST->glass[ST->gy + ST->marg_bottom[i] + 1][ST->gx + i] > 0)
         {
             return true;
         }
@@ -470,6 +472,29 @@ void clearGlass(tState *ST)
     }
 }
 
+void updState(tState *ST)
+{
+    ST->gx = (ST->x - ST->glass_x) / ST->block_size;
+    ST->gy = (ST->y - ST->glass_y) / ST->block_size;
+    getMargins(ST);
+    getBottomMargins(ST);
+}
+
+void fallStep(tState *ST)
+{
+    printf("%d\t%d\t%d\t%d\n", ST->marg_bottom[0], ST->marg_bottom[1], ST->marg_bottom[2], ST->marg_bottom[3]);
+    if (checkItemBottomTouch(ST))
+    {
+        copyBlocksToGlass(ST);
+        ST->GAME_STATE = BLOCKS_STOPPED;
+    }
+    else
+    {
+        ST->y += ST->block_size;
+        updState(ST);
+    }
+}
+
 int main(int argc, char **argv)
 {
 
@@ -543,8 +568,8 @@ int main(int argc, char **argv)
                  .block_size = 25,
                  .GAME_STATE = GAME_WELCOME,
                  .TIMER_FPS = {0, 1000 / ST.fps},
-                 .TIMER_1 = {0, 200},
-                 .TIMER_2 = {0, 100},
+                 .TIMER_1 = {0, 1000},
+                 .TIMER_2 = {0, 75},
                  .ITEM_ID = -1};
 
     /* Create a window */
@@ -672,22 +697,7 @@ int main(int argc, char **argv)
                 case ITEM_STARTED: // TIMER_FPS
                     break;
                 case BLOCKS_FALLING: // TIMER_1
-
-                    printf("%d\t%d\t%d\t%d\n", ST.marg_bottom[0], ST.marg_bottom[1], ST.marg_bottom[2],
-                           ST.marg_bottom[3]);
-
-                    if (checkItemBottomTouch(&ST))
-                    {
-                        copyBlocksToGlass(&ST);
-                        printf("stopped\n");
-                        ST.GAME_STATE = BLOCKS_STOPPED;
-                    }
-                    else
-                    {
-                        ST.y += ST.block_size;
-                        ST.gx = (ST.x - ST.glass_x) / ST.block_size;
-                        ST.gy = (ST.y - ST.glass_y) / ST.block_size;
-                    }
+                    fallStep(&ST);
                     break;
                 case BLOCKS_FALLING_FAST: // TIMER_2
                     break;
@@ -720,6 +730,7 @@ int main(int argc, char **argv)
                 case BLOCKS_FALLING: // TIMER_1
                     break;
                 case BLOCKS_FALLING_FAST: // TIMER_2
+                    fallStep(&ST);
                     break;
                 case BLOCKS_STOPPED: // TIMER_2
                     break;
@@ -756,13 +767,12 @@ int main(int argc, char **argv)
                 clearGlass(&ST);
                 ST.GAME_STATE = ITEM_STARTED;
                 break;
-            case ITEM_STARTED:  // TIMER_FPS
-                ST.ITEM_ID = 4; // rand() % 7;
+            case ITEM_STARTED: // TIMER_FPS
+                ST.ITEM_ID = rand() % 7;
                 ST.x = (CONF.w - ITEMBLOCKS * ST.block_size) / 2;
                 ST.y = ITEMBLOCKS * ST.block_size / 2;
+                updState(&ST);
                 drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
-                getMargins(ST.items[ST.ITEM_ID], &ST.marg_left, &ST.marg_right);
-                getBottomMargins(&ST);
                 SDL_Delay(500);
                 ST.GAME_STATE = BLOCKS_FALLING;
                 break;
@@ -786,8 +796,7 @@ int main(int argc, char **argv)
                 if (up_pressed && !up_processed)
                 {
                     rotateMatrix(ST.items[ST.ITEM_ID]);
-                    getMargins(ST.items[ST.ITEM_ID], &ST.marg_left, &ST.marg_right);
-                    getBottomMargins(&ST);
+                    updState(&ST);
                     up_processed = true;
                 }
                 if (put_pressed && !put_processed)
@@ -817,8 +826,7 @@ int main(int argc, char **argv)
                 if (up_pressed && !up_processed)
                 {
                     rotateMatrix(ST.items[ST.ITEM_ID]);
-                    getMargins(ST.items[ST.ITEM_ID], &ST.marg_left, &ST.marg_right);
-                    getBottomMargins(&ST);
+                    updState(&ST);
                     up_processed = true;
                 }
                 drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
