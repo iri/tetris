@@ -51,25 +51,22 @@ typedef enum
         GAME_STARTED --> ITEM_STARTED
         ITEM_STARTED --> BLOCKS_FALLING
         BLOCKS_FALLING --> BLOCKS_FALLING_FAST
+        BLOCKS_FALLING --> BLOCKS_FALLING
         BLOCKS_FALLING --> BLOCKS_STOPPED
         BLOCKS_FALLING_FAST --> BLOCKS_STOPPED
-        BLOCKS_STOPPED --> BLOCKS_FULLLINE_REMOVED
-        BLOCKS_FULLLINE_REMOVED --> BLOCKS_FALLING_FAST
-        BLOCKS_STOPPED --> ITEM_FINISHED
-        ITEM_FINISHED --> GAME_FINISHED
-        ITEM_FINISHED --> ITEM_STARTED
+        BLOCKS_FALLING_FAST --> BLOCKS_FALLING_FAST
+        BLOCKS_STOPPED --> ITEM_STARTED
+        BLOCKS_STOPPED --> GAME_FINISHED
         GAME_FINISHED --> GAME_WELCOME
     @enduml
      */
-    GAME_WELCOME,            // TIMER_FPS
-    GAME_STARTED,            // TIMER_FPS
-    ITEM_STARTED,            // TIMER_FPS
-    BLOCKS_FALLING,          // TIMER_1
-    BLOCKS_FALLING_FAST,     // TIMER_2
-    BLOCKS_STOPPED,          // TIMER_2
-    BLOCKS_FULLLINE_REMOVED, // TIMER_2
-    ITEM_FINISHED,           // TIMER_FPS
-    GAME_FINISHED            // TIMER_FPS
+    GAME_WELCOME,        // TIMER_FPS
+    GAME_STARTED,        // TIMER_FPS
+    ITEM_STARTED,        // TIMER_FPS
+    BLOCKS_FALLING,      // TIMER_1
+    BLOCKS_FALLING_FAST, // TIMER_2
+    BLOCKS_STOPPED,      // TIMER_2
+    GAME_FINISHED        // TIMER_FPS
 } tGameState;
 
 const char *getGameState(tGameState state)
@@ -88,10 +85,6 @@ const char *getGameState(tGameState state)
         return "BLOCKS_FALLING_FAST";
     case BLOCKS_STOPPED:
         return "BLOCKS_STOPPED";
-    case BLOCKS_FULLLINE_REMOVED:
-        return "BLOCKS_FULLLINE_REMOVED";
-    case ITEM_FINISHED:
-        return "ITEM_FINISHED";
     case GAME_FINISHED:
         return "GAME_FINISHED";
     }
@@ -116,13 +109,149 @@ typedef struct _tstate
     uint8_t glass[GLASS_H][GLASS_W];
     int x, y;
     int gx, gy;
-    int8_t marg_left;
-    int8_t marg_right;
+    int8_t marg_left[ITEMBLOCKS];
+    int8_t marg_right[ITEMBLOCKS];
     int8_t marg_bottom[ITEMBLOCKS];
 } tState;
 
-void rotateMatrix(int8_t *mat)
+inline int8_t min_of_four(int8_t a, int8_t b, int8_t c, int8_t d)
 {
+    int8_t min = a;
+
+    if (b < min)
+    {
+        min = b;
+    }
+    if (c < min)
+    {
+        min = c;
+    }
+    if (d < min)
+    {
+        min = d;
+    }
+
+    return min;
+}
+
+inline int8_t max_of_four(int8_t a, int8_t b, int8_t c, int8_t d)
+{
+    int8_t max = a;
+
+    if (b > max)
+    {
+        max = b;
+    }
+    if (c > max)
+    {
+        max = c;
+    }
+    if (d > max)
+    {
+        max = d;
+    }
+
+    return max;
+}
+
+void updState(tState *ST)
+{
+    ST->gx = (ST->x - ST->glass_x) / ST->block_size;
+    ST->gy = (ST->y - ST->glass_y) / ST->block_size;
+}
+
+void getBottomMargins(tState *ST)
+{
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        for (ST->marg_bottom[i] = ITEMBLOCKS - 1; ST->marg_bottom[i] >= 0; ST->marg_bottom[i]--)
+        {
+            if (ST->items[ST->ITEM_ID][ST->marg_bottom[i] * ITEMBLOCKS + i] > 0)
+            {
+                break;
+            }
+        }
+    }
+}
+
+void getLeftMargins(tState *ST)
+{
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        for (ST->marg_left[i] = 0; ST->marg_left[i] < ITEMBLOCKS; ST->marg_left[i]++)
+        {
+            if (ST->items[ST->ITEM_ID][i * ITEMBLOCKS + ST->marg_left[i]] > 0)
+            {
+                break;
+            }
+        }
+    }
+}
+
+void getRightMargins(tState *ST)
+{
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        for (ST->marg_right[i] = ITEMBLOCKS - 1; ST->marg_right[i] >= 0; ST->marg_right[i]--)
+        {
+            if (ST->items[ST->ITEM_ID][i * ITEMBLOCKS + ST->marg_right[i]] > 0)
+            {
+                break;
+            }
+        }
+    }
+}
+
+bool checkItemLeft(tState *ST)
+{
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        if (ST->marg_left[i] >= 0)
+        {
+            if (ST->gx + ST->marg_left[i] <= 0 || ST->glass[ST->gy + i + 0][ST->gx + ST->marg_left[i] - 1] > 0)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool checkItemRight(tState *ST)
+{
+
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        if (ST->marg_right[i] >= 0)
+        {
+            if (ST->gx + ST->marg_right[i] >= GLASS_W - 1 ||
+                ST->glass[ST->gy + i + 0][ST->gx + ST->marg_right[i] + 1] > 0)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool checkItemBottom(tState *ST)
+{
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        if (ST->marg_bottom[i] >= 0)
+        {
+            if (ST->gy + ST->marg_bottom[i] + 2 > GLASS_H || ST->glass[ST->gy + ST->marg_bottom[i] + 1][ST->gx + i] > 0)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void rotateItem(tState *ST)
+{
+    int8_t *mat = ST->items[ST->ITEM_ID];
     for (int8_t i = 0; i < ITEMBLOCKS / 2; i++)
     {
         for (int8_t j = i; j < ITEMBLOCKS - i - 1; j++)
@@ -149,10 +278,31 @@ void rotateMatrix(int8_t *mat)
             mat[index4] = temp;
         }
     }
+    getLeftMargins(ST);
+    getRightMargins(ST);
+    getBottomMargins(ST);
+
+    // while (checkItemLeft(ST))
+    // {
+    //     ST->x += ST->block_size;
+    //     updState(ST);
+    // }
+    // while (checkItemRight(ST))
+    // {
+    //     ST->x -= ST->block_size;
+    //     updState(ST);
+    // }
+
+    for (int i = 0; i < ITEMBLOCKS; i++)
+    {
+        printf("%d        %d   %d      %d  %d\n", i, ST->marg_left[i], ST->marg_right[i], checkItemLeft(ST),
+               checkItemRight(ST));
+    }
 }
 
-void printMatrix(int8_t *mat)
+void printItem(tState *ST)
 {
+    int8_t *mat = ST->items[ST->ITEM_ID];
     for (int8_t i = 0; i < ITEMBLOCKS; i++)
     {
         for (int8_t j = 0; j < ITEMBLOCKS; j++)
@@ -161,76 +311,6 @@ void printMatrix(int8_t *mat)
         }
         printf("\n");
     }
-}
-
-void getBottomMargins(tState *ST)
-{
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        for (ST->marg_bottom[i] = ITEMBLOCKS - 1; ST->marg_bottom[i] >= 0; ST->marg_bottom[i]--)
-        {
-            if (ST->items[ST->ITEM_ID][ST->marg_bottom[i] * ITEMBLOCKS + i] > 0)
-            {
-                break;
-            }
-        }
-    }
-}
-
-void getMargins(tState *ST)
-{
-    uint8_t sum;
-    int8_t *mat = ST->items[ST->ITEM_ID];
-    ST->marg_left = 0;
-    ST->marg_right = 0;
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        sum = 0;
-        for (int j = 0; j < ITEMBLOCKS; j++)
-        {
-            sum += mat[j * ITEMBLOCKS + i];
-        }
-        if (sum == 0)
-        {
-            ++ST->marg_left;
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    for (int i = ITEMBLOCKS - 1; i >= 0; i--)
-    {
-        sum = 0;
-        for (int j = 0; j < ITEMBLOCKS; j++)
-        {
-            sum += mat[j * ITEMBLOCKS + i];
-        }
-        if (sum == 0)
-        {
-            ++ST->marg_right;
-        }
-        else
-        {
-            break;
-        }
-    }
-}
-
-bool checkItemBottomTouch(tState *ST)
-{
-
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        printf("===   %d    %d    %d\n", ST->gy + ST->marg_bottom[i] + 2 > GLASS_H,
-               ST->glass[ST->gy + ST->marg_bottom[i] + 1][ST->gx + i] > 0, ST->gy);
-        if (ST->gy + ST->marg_bottom[i] + 2 > GLASS_H || ST->glass[ST->gy + ST->marg_bottom[i] + 1][ST->gx + i] > 0)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 void copyBlocksToGlass(tState *ST)
@@ -246,6 +326,58 @@ void copyBlocksToGlass(tState *ST)
             }
         }
     }
+}
+
+void printGlass(tState *ST)
+{
+    for (int i = 0; i < GLASS_H; i++)
+    {
+        for (int j = 0; j < GLASS_W; j++)
+        {
+            printf("%d ", ST->glass[i][j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+void removeFullLine(tState *ST, int line)
+{
+    int fullCells;
+    do
+    {
+        fullCells = 0;
+        for (int j = 0; j < GLASS_W; j++)
+        {
+            ST->glass[line][j] = ST->glass[line - 1][j];
+            fullCells += (ST->glass[line][j] != 0);
+        }
+        --line;
+    } while (fullCells != 0 && line > 0);
+}
+
+bool checkRemoveFullLine(tState *ST)
+{
+    // printGlass(ST);
+    int emptyCells;
+    for (int i = GLASS_H - 1; i >= 0; i--)
+    {
+        emptyCells = 0;
+        for (int j = 0; j < GLASS_W; j++)
+        {
+            emptyCells += (ST->glass[i][j] == 0);
+        }
+        if (emptyCells == 0)
+        {
+            printf("full line: %d\n", i);
+
+            // remove full line found
+            removeFullLine(ST, i);
+
+            return true;
+        }
+    }
+    return false;
 }
 
 bool parse_opt_arg_uint(int argc, char **argv, int *ind, int *res)
@@ -403,6 +535,10 @@ void parse_args(int argc, char **argv, tConfig *conf, SDL_DisplayMode *DM)
 
 void drawItem(SDL_Renderer *rend, int x, int y, tState *ST, int item)
 {
+    if (ST->GAME_STATE != BLOCKS_FALLING && ST->GAME_STATE != BLOCKS_FALLING_FAST)
+    {
+        return;
+    }
     SDL_Rect rect = {x, y, ST->block_size, ST->block_size};
     int e;
     for (int8_t i = 0; i < ITEMBLOCKS; i++)
@@ -472,18 +608,9 @@ void clearGlass(tState *ST)
     }
 }
 
-void updState(tState *ST)
-{
-    ST->gx = (ST->x - ST->glass_x) / ST->block_size;
-    ST->gy = (ST->y - ST->glass_y) / ST->block_size;
-    getMargins(ST);
-    getBottomMargins(ST);
-}
-
 void fallStep(tState *ST)
 {
-    printf("%d\t%d\t%d\t%d\n", ST->marg_bottom[0], ST->marg_bottom[1], ST->marg_bottom[2], ST->marg_bottom[3]);
-    if (checkItemBottomTouch(ST))
+    if (checkItemBottom(ST))
     {
         copyBlocksToGlass(ST);
         ST->GAME_STATE = BLOCKS_STOPPED;
@@ -702,11 +829,6 @@ int main(int argc, char **argv)
                 case BLOCKS_FALLING_FAST: // TIMER_2
                     break;
                 case BLOCKS_STOPPED: // TIMER_2
-                    ST.GAME_STATE = ITEM_STARTED;
-                    break;
-                case BLOCKS_FULLLINE_REMOVED: // TIMER_2
-                    break;
-                case ITEM_FINISHED: // TIMER_FPS
                     break;
                 case GAME_FINISHED: // TIMER_FPS
                     break;
@@ -718,7 +840,7 @@ int main(int argc, char **argv)
             // TIMER_2 handling (100 ms)
             if (is_timer_tick(&ST.TIMER_2))
             {
-                // printf("%s\n", getGameState(ST.GAME_STATE));
+                printf("%s\n", getGameState(ST.GAME_STATE));
                 switch (ST.GAME_STATE)
                 {
                 case GAME_WELCOME: // TIMER_FPS
@@ -733,10 +855,10 @@ int main(int argc, char **argv)
                     fallStep(&ST);
                     break;
                 case BLOCKS_STOPPED: // TIMER_2
-                    break;
-                case BLOCKS_FULLLINE_REMOVED: // TIMER_2
-                    break;
-                case ITEM_FINISHED: // TIMER_FPS
+                    if (!checkRemoveFullLine(&ST))
+                    {
+                        ST.GAME_STATE = ITEM_STARTED;
+                    }
                     break;
                 case GAME_FINISHED: // TIMER_FPS
                     break;
@@ -771,31 +893,39 @@ int main(int argc, char **argv)
                 ST.ITEM_ID = rand() % 7;
                 ST.x = (CONF.w - ITEMBLOCKS * ST.block_size) / 2;
                 ST.y = ITEMBLOCKS * ST.block_size / 2;
+                // init item margins
+                getLeftMargins(&ST);
+                getRightMargins(&ST);
+                getBottomMargins(&ST);
+                // update state
                 updState(&ST);
                 drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
                 SDL_Delay(500);
                 ST.GAME_STATE = BLOCKS_FALLING;
                 break;
-            case BLOCKS_FALLING: // TIMER_1
+            case BLOCKS_FALLING:      // TIMER_1
+            case BLOCKS_FALLING_FAST: // TIMER_2
                 if (left_pressed && !left_processed)
                 {
-                    if (ST.x - ST.glass_x + ST.marg_left * ST.block_size > 0)
+                    if (!checkItemLeft(&ST))
                     {
                         ST.x -= ST.block_size;
+                        updState(&ST);
                     }
                     left_processed = true;
                 }
                 if (right_pressed && !right_processed)
                 {
-                    if (ST.glass_x + ST.glass_w - ST.x - (ITEMBLOCKS - ST.marg_right) * ST.block_size > 0)
+                    if (!checkItemRight(&ST))
                     {
                         ST.x += ST.block_size;
+                        updState(&ST);
                     }
                     right_processed = true;
                 }
                 if (up_pressed && !up_processed)
                 {
-                    rotateMatrix(ST.items[ST.ITEM_ID]);
+                    rotateItem(&ST);
                     updState(&ST);
                     up_processed = true;
                 }
@@ -806,37 +936,8 @@ int main(int argc, char **argv)
                 }
                 drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
                 break;
-            case BLOCKS_FALLING_FAST: // TIMER_2
-                if (left_pressed && !left_processed)
-                {
-                    if (ST.x - ST.glass_x + ST.marg_left * ST.block_size > 0)
-                    {
-                        ST.x -= ST.block_size;
-                    }
-                    left_processed = true;
-                }
-                if (right_pressed && !right_processed)
-                {
-                    if (ST.glass_x + ST.glass_w - ST.x - (ITEMBLOCKS - ST.marg_right) * ST.block_size > 0)
-                    {
-                        ST.x += ST.block_size;
-                    }
-                    right_processed = true;
-                }
-                if (up_pressed && !up_processed)
-                {
-                    rotateMatrix(ST.items[ST.ITEM_ID]);
-                    updState(&ST);
-                    up_processed = true;
-                }
-                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
-                break;
             case BLOCKS_STOPPED: // TIMER_2
                 drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
-                break;
-            case BLOCKS_FULLLINE_REMOVED: // TIMER_2
-                break;
-            case ITEM_FINISHED: // TIMER_FPS
                 break;
             case GAME_FINISHED: // TIMER_FPS
                 break;
