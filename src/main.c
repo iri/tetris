@@ -616,7 +616,7 @@ bool parse_opt_arg_str(int argc, char **argv, int *ind, char *res, int len)
     }
     else
     {
-        rc = 0;
+        *res = 0;
     }
     return rc;
 }
