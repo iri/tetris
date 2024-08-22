@@ -1,4 +1,4 @@
-# Simple TETRIS game using SDL2
+# TETRIS game
 
 ## Requirements
 Windows  
