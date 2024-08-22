@@ -413,8 +413,7 @@ void rotateItem(tState *ST)
     getRightMargins(ST);
     getBottomMargins(ST);
 
-    printf("====::  %d   %d\n", checkItemLeftInt(ST, 0), checkItemRightInt(ST, GLASS_W - 1));
-
+    // printf("====::  %d   %d\n", checkItemLeftInt(ST, 0), checkItemRightInt(ST, GLASS_W - 1));
     // bool clr = false;
     // while (!clr)
     // {
@@ -754,7 +753,7 @@ void drawItem(SDL_Renderer *rend, int x, int y, tState *ST)
     {
         for (int8_t j = 0; j < ITEMBLOCKS; j++)
         {
-            e = ST->items[item][i * ITEMBLOCKS + j];
+            e = ST->items[ST->ITEM_ID][i * ITEMBLOCKS + j];
             if (e > 0)
             {
                 rect.y = y + i * ST->block_size;
