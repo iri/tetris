@@ -1,1 +1,1 @@
-main.exe -d 1200 800 -r  
+tetris.exe -d 1200 800 -r  
