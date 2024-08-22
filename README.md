@@ -1,4 +1,4 @@
-# TETRIS game
+# TETRIS
 
 ## Requirements
 Windows  
