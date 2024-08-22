@@ -7,42 +7,72 @@
 #include <unistd.h>
 #include <windows.h>
 
+/**
+ * @brief Timer data structure type
+ *
+ */
 typedef struct _ttimer
 {
-    uint64_t last;
-    int ms;
+    uint64_t last; //  Timestamp when the timer was fixed last time (in ms since program start)
+    int ms;        //  Timer value in ms when tick must be triggered
 } tTimer;
 
+/**
+ * @brief Initialize / reinitialize timer
+ *
+ * @param t : Timer
+ */
 void timer_start(tTimer *t)
 {
     t->last = GetTickCount();
 }
+/**
+ * @brief Return current value of the timer t (in ms)
+ *
+ * @param t : Timer
+ * @return uint64_t Timer value
+ */
 uint64_t timer_check(tTimer *t)
 {
     return GetTickCount() - t->last;
 }
+/**
+ * @brief Is time to tick the timer?
+ *
+ * @param t : Timer
+ * @return true : Yes
+ * @return false : No
+ */
 bool is_timer_tick(tTimer *t)
 {
     return (GetTickCount() - t->last) >= t->ms;
 }
-void timer_tick_finish(tTimer *t)
-{
-    t->last = GetTickCount();
-}
 
+/**
+ * @brief Program configuration data structure
+ *
+ */
 typedef struct _tconfig
 {
     int _l, _r, _t, _b, _f;
-    int w, h;
-    int x, y;
+    int w, h; // Window width, window height
+    int x, y; // Coordinates of window left-top corner
 } tConfig;
 
+/**
+ * @brief Constants for game state
+ *
+ */
 #define MAXITEMS 7
 #define MAXCOLORS 7
 #define ITEMBLOCKS 4
 #define GLASS_W 14
 #define GLASS_H 28
 
+/**
+ * @brief Possible game state variable values
+ *
+ */
 typedef enum
 {
     /*
@@ -50,26 +80,32 @@ typedef enum
         [*] --> GAME_WELCOME
         GAME_WELCOME --> GAME_STARTED
         GAME_STARTED --> ITEM_STARTED
-        ITEM_STARTED --> BLOCKS_FALLING
-        BLOCKS_FALLING --> BLOCKS_FALLING_FAST
-        BLOCKS_FALLING --> BLOCKS_FALLING
-        BLOCKS_FALLING --> BLOCKS_STOPPED
-        BLOCKS_FALLING_FAST --> BLOCKS_STOPPED
-        BLOCKS_FALLING_FAST --> BLOCKS_FALLING_FAST
-        BLOCKS_STOPPED --> ITEM_STARTED
-        BLOCKS_STOPPED --> GAME_FINISHED
+        ITEM_STARTED --> ITEM_FALLING
+        ITEM_FALLING --> ITEM_FALLING_FAST
+        ITEM_FALLING --> ITEM_FALLING
+        ITEM_FALLING --> ITEM_STOPPED
+        ITEM_FALLING_FAST --> ITEM_STOPPED
+        ITEM_FALLING_FAST --> ITEM_FALLING_FAST
+        ITEM_STOPPED --> ITEM_STARTED
+        ITEM_STOPPED --> GAME_FINISHED
         GAME_FINISHED --> GAME_WELCOME
     @enduml
      */
-    GAME_WELCOME,        // TIMER_FPS
-    GAME_STARTED,        // TIMER_FPS
-    ITEM_STARTED,        // TIMER_FPS
-    BLOCKS_FALLING,      // TIMER_1
-    BLOCKS_FALLING_FAST, // TIMER_2
-    BLOCKS_STOPPED,      // TIMER_2
-    GAME_FINISHED        // TIMER_FPS
+    GAME_WELCOME,      // Game welcome screen
+    GAME_STARTED,      // User started game
+    ITEM_STARTED,      // An item started to fall
+    ITEM_FALLING,      // The item falls slowly
+    ITEM_FALLING_FAST, // The item falls fast (user pressed <space>)
+    ITEM_STOPPED,      // An Item stopped falling
+    GAME_FINISHED      // The glass is full, game over
 } tGameState;
 
+/**
+ * @brief Return the Game State name
+ *
+ * @param state : Game state variable value
+ * @return const char* : Game state name
+ */
 const char *getGameState(tGameState state)
 {
     switch (state)
@@ -80,41 +116,48 @@ const char *getGameState(tGameState state)
         return "GAME_STARTED";
     case ITEM_STARTED:
         return "ITEM_STARTED";
-    case BLOCKS_FALLING:
-        return "BLOCKS_FALLING";
-    case BLOCKS_FALLING_FAST:
-        return "BLOCKS_FALLING_FAST";
-    case BLOCKS_STOPPED:
-        return "BLOCKS_STOPPED";
+    case ITEM_FALLING:
+        return "ITEM_FALLING";
+    case ITEM_FALLING_FAST:
+        return "ITEM_FALLING_FAST";
+    case ITEM_STOPPED:
+        return "ITEM_STOPPED";
     case GAME_FINISHED:
         return "GAME_FINISHED";
     }
     return "invalid status";
 }
 
+/**
+ * @brief Game state data structure
+ *
+ */
 typedef struct _tstate
 {
-    uint8_t colors[MAXCOLORS][3];
-    int8_t items[MAXITEMS][ITEMBLOCKS * ITEMBLOCKS];
-    int fps;
-    int block_size;
-    tGameState GAME_STATE;
-    tTimer TIMER_FPS;
-    tTimer TIMER_1;
-    tTimer TIMER_2;
-    int ITEM_ID;
-    int glass_x;
-    int glass_y;
-    int glass_w;
-    int glass_h;
-    uint8_t glass[GLASS_H][GLASS_W];
-    int x, y;
-    int gx, gy;
-    int8_t marg_left[ITEMBLOCKS];
-    int8_t marg_right[ITEMBLOCKS];
-    int8_t marg_bottom[ITEMBLOCKS];
+    uint8_t colors[MAXCOLORS][3];                    // Array of pPossible item colors
+    int8_t items[MAXITEMS][ITEMBLOCKS * ITEMBLOCKS]; // Array of possible item types
+    int fps;                                         // Frames per second for screen refresh
+    int block_size;                                  // Block size in px
+    tGameState GAME_STATE;                           // Game state variable
+    tTimer TIMER_FPS;                                // Timer for frame drawing (100/60 ms by default)
+    tTimer TIMER_1;                                  // Timer for slow falling (1000 ms by default)
+    tTimer TIMER_2;                                  // Timer for fast falling (100 ms by default)
+    int ITEM_ID;                                     // Current item
+    int glass_x, glass_y;                            // Position of left top corner of glass (in px)
+    int glass_w, glass_h;                            // Wisth and heightr of glass (in px)
+    uint8_t glass[GLASS_H][GLASS_W];                 // Array for blocks in the glass
+    int x, y;                                        // Coordinates of the falling item's left-up corner
+    int gx, gy;                     // Glass position corresponding to the left-up block of the item (in blocks)
+    int8_t marg_left[ITEMBLOCKS];   // Blocks when the item starts from the left (for each item line)
+    int8_t marg_right[ITEMBLOCKS];  // Blocks when the item ends from the left (for each item line)
+    int8_t marg_bottom[ITEMBLOCKS]; // Blocks when the item ends from the top (for each item column)
 } tState;
 
+/**
+ * @brief Find the minimum of the 4 values
+ *
+ * @return int8_t : Minimum value
+ */
 inline int8_t min_of_four(int8_t a, int8_t b, int8_t c, int8_t d)
 {
     int8_t min = a;
@@ -135,6 +178,11 @@ inline int8_t min_of_four(int8_t a, int8_t b, int8_t c, int8_t d)
     return min;
 }
 
+/**
+ * @brief Find the mfximum of the 4 values
+ *
+ * @return int8_t : Maximum value
+ */
 inline int8_t max_of_four(int8_t a, int8_t b, int8_t c, int8_t d)
 {
     int8_t max = a;
@@ -155,12 +203,22 @@ inline int8_t max_of_four(int8_t a, int8_t b, int8_t c, int8_t d)
     return max;
 }
 
+/**
+ * @brief Recompute depending values of item's coordinates
+ *
+ * @param ST : State data structure
+ */
 void updState(tState *ST)
 {
     ST->gx = (ST->x - ST->glass_x) / ST->block_size;
     ST->gy = (ST->y - ST->glass_y) / ST->block_size;
 }
 
+/**
+ * @brief Get the Bottom Margins of the item
+ *
+ * @param ST : State data structure
+ */
 void getBottomMargins(tState *ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -175,6 +233,11 @@ void getBottomMargins(tState *ST)
     }
 }
 
+/**
+ * @brief Get the Left Margins of the item
+ *
+ * @param ST : State data structure
+ */
 void getLeftMargins(tState *ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -189,6 +252,11 @@ void getLeftMargins(tState *ST)
     }
 }
 
+/**
+ * @brief Get the Right Margins of the item
+ *
+ * @param ST : State data structure
+ */
 void getRightMargins(tState *ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -203,6 +271,13 @@ void getRightMargins(tState *ST)
     }
 }
 
+/**
+ * @brief Check the touch of the left margins of the item
+ *
+ * @param ST : State data structure
+ * @return true
+ * @return false
+ */
 bool checkItemLeft(tState *ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -218,6 +293,13 @@ bool checkItemLeft(tState *ST)
     return false;
 }
 
+/**
+ * @brief Check the touch of the right margins of the item
+ *
+ * @param ST : State data structure
+ * @return true
+ * @return false
+ */
 bool checkItemRight(tState *ST)
 {
 
@@ -235,42 +317,49 @@ bool checkItemRight(tState *ST)
     return false;
 }
 
-int checkItemLeftInt(tState *ST, int gx_min)
-{
-    int r = 100;
-    int r1;
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        if (ST->marg_left[i] >= 0)
-        {
-            r1 = ST->gx + ST->marg_left[i] - gx_min;
-            if (r1 < r)
-            {
-                r = r1;
-            }
-        }
-    }
-    return r;
-}
+// int checkItemLeftInt(tState *ST, int gx_min)
+// {
+//     int r = 100;
+//     int r1;
+//     for (int i = 0; i < ITEMBLOCKS; i++)
+//     {
+//         if (ST->marg_left[i] >= 0)
+//         {
+//             r1 = ST->gx + ST->marg_left[i] - gx_min;
+//             if (r1 < r)
+//             {
+//                 r = r1;
+//             }
+//         }
+//     }
+//     return r;
+// }
 
-int checkItemRightInt(tState *ST, int gx_max)
-{
-    int r = -100;
-    int r1;
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        if (ST->marg_right[i] >= 0)
-        {
-            r1 = gx_max - (ST->gx + ST->marg_right[i]);
-            if (r1 > r)
-            {
-                r = r1;
-            }
-        }
-    }
-    return r;
-}
+// int checkItemRightInt(tState *ST, int gx_max)
+// {
+//     int r = -100;
+//     int r1;
+//     for (int i = 0; i < ITEMBLOCKS; i++)
+//     {
+//         if (ST->marg_right[i] >= 0)
+//         {
+//             r1 = gx_max - (ST->gx + ST->marg_right[i]);
+//             if (r1 > r)
+//             {
+//                 r = r1;
+//             }
+//         }
+//     }
+//     return r;
+// }
 
+/**
+ * @brief Check the touch of the bottim margins of the item
+ *
+ * @param ST : State data structure
+ * @return true
+ * @return false
+ */
 bool checkItemBottom(tState *ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -286,6 +375,11 @@ bool checkItemBottom(tState *ST)
     return false;
 }
 
+/**
+ * @brief Rotate item left
+ *
+ * @param ST : State data structure
+ */
 void rotateItem(tState *ST)
 {
     int8_t *mat = ST->items[ST->ITEM_ID];
@@ -350,6 +444,11 @@ void rotateItem(tState *ST)
     }
 }
 
+/**
+ * @brief Print item array values
+ *
+ * @param ST : State data structure
+ */
 void printItem(tState *ST)
 {
     int8_t *mat = ST->items[ST->ITEM_ID];
@@ -363,6 +462,11 @@ void printItem(tState *ST)
     }
 }
 
+/**
+ * @brief Copy item's blocks to glass array
+ *
+ * @param ST : State data structure
+ */
 void copyBlocksToGlass(tState *ST)
 {
     // copy stopped item blocks to glass
@@ -378,6 +482,11 @@ void copyBlocksToGlass(tState *ST)
     }
 }
 
+/**
+ * @brief Print glass array values
+ *
+ * @param ST : State data structure
+ */
 void printGlass(tState *ST)
 {
     for (int i = 0; i < GLASS_H; i++)
@@ -391,6 +500,12 @@ void printGlass(tState *ST)
     printf("\n");
 }
 
+/**
+ * @brief Remove specified line, all lined above move down by one line
+ *
+ * @param ST : State data structure
+ * @param line
+ */
 void removeFullLine(tState *ST, int line)
 {
     int fullCells;
@@ -406,6 +521,13 @@ void removeFullLine(tState *ST, int line)
     } while (fullCells != 0 && line > 0);
 }
 
+/**
+ * @brief Remove full lines from the glass
+ *
+ * @param ST : State data structure
+ * @return true
+ * @return false
+ */
 bool checkRemoveFullLine(tState *ST)
 {
     // printGlass(ST);
@@ -430,6 +552,16 @@ bool checkRemoveFullLine(tState *ST)
     return false;
 }
 
+/**
+ * @brief Get uint argument value
+ *
+ * @param argc : Number of arguments passed to the program
+ * @param argv : Values of arguments passed to the program
+ * @param ind : Current argument
+ * @param res : Obtained argument value
+ * @return true : Successful obtaining of argument
+ * @return false : Unsuccessful obtaining of argument
+ */
 bool parse_opt_arg_uint(int argc, char **argv, int *ind, int *res)
 {
     int rc = true;
@@ -463,6 +595,17 @@ bool parse_opt_arg_uint(int argc, char **argv, int *ind, int *res)
     return rc;
 }
 
+/**
+ * @brief Get string argument value
+ *
+ * @param argc : Number of arguments passed to the program
+ * @param argv : Values of arguments passed to the program
+ * @param ind : Current argument
+ * @param res : Pointer to place for obtained argument (must be allocated)
+ * @param len : Maximum length of obtained argument
+ * @return true : Successful obtaining of argument
+ * @return false : Unsuccessful obtaining of argument
+ */
 bool parse_opt_arg_str(int argc, char **argv, int *ind, char *res, int len)
 {
     int rc = true;
@@ -474,11 +617,19 @@ bool parse_opt_arg_str(int argc, char **argv, int *ind, char *res, int len)
     }
     else
     {
-        *res = 0;
+        rc = 0;
     }
     return rc;
 }
 
+/**
+ * @brief
+ *
+ * @param argc : Number of arguments passed to the program
+ * @param argv : Values of arguments passed to the program
+ * @param conf : Configuration data structure
+ * @param DM : Display mode data structure
+ */
 void parse_args(int argc, char **argv, tConfig *conf, SDL_DisplayMode *DM)
 {
     int option;
@@ -583,9 +734,17 @@ void parse_args(int argc, char **argv, tConfig *conf, SDL_DisplayMode *DM)
     }
 }
 
-void drawItem(SDL_Renderer *rend, int x, int y, tState *ST, int item)
+/**
+ * @brief Draw item
+ *
+ * @param rend : Renderer data structure
+ * @param x : X coordinate of item
+ * @param y : Y coordinate of item
+ * @param ST : State data structure
+ */
+void drawItem(SDL_Renderer *rend, int x, int y, tState *ST)
 {
-    if (ST->GAME_STATE != BLOCKS_FALLING && ST->GAME_STATE != BLOCKS_FALLING_FAST)
+    if (ST->GAME_STATE != ITEM_FALLING && ST->GAME_STATE != ITEM_FALLING_FAST)
     {
         return;
     }
@@ -620,7 +779,13 @@ void drawItem(SDL_Renderer *rend, int x, int y, tState *ST, int item)
     }
 }
 
-void drawGlass(SDL_Renderer *rend, tState *ST, tConfig *conf)
+/**
+ * @brief Draw glass with blocks in it
+ *
+ * @param rend : Renderer data structure
+ * @param ST : State data structure
+ */
+void drawGlass(SDL_Renderer *rend, tState *ST)
 {
     SDL_Rect rect = {ST->glass_x, ST->glass_y, ST->glass_w, ST->glass_h};
     SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
@@ -647,6 +812,11 @@ void drawGlass(SDL_Renderer *rend, tState *ST, tConfig *conf)
     }
 }
 
+/**
+ * @brief Initialize glass array
+ *
+ * @param ST : State data structure
+ */
 void clearGlass(tState *ST)
 {
     for (int i = 0; i < GLASS_H; i++)
@@ -658,12 +828,17 @@ void clearGlass(tState *ST)
     }
 }
 
+/**
+ * @brief Process falling step of item
+ *
+ * @param ST : State data structure
+ */
 void fallStep(tState *ST)
 {
     if (checkItemBottom(ST))
     {
         copyBlocksToGlass(ST);
-        ST->GAME_STATE = BLOCKS_STOPPED;
+        ST->GAME_STATE = ITEM_STOPPED;
     }
     else
     {
@@ -672,6 +847,13 @@ void fallStep(tState *ST)
     }
 }
 
+/**
+ * @brief Main program
+ *
+ * @param argc : Number of arguments passed to the program
+ * @param argv : Values of arguments passed to the program
+ * @return int
+ */
 int main(int argc, char **argv)
 {
     tConfig CONF;
@@ -866,24 +1048,24 @@ int main(int argc, char **argv)
                 printf("%s\n", getGameState(ST.GAME_STATE));
                 switch (ST.GAME_STATE)
                 {
-                case GAME_WELCOME: // TIMER_FPS
+                case GAME_WELCOME:
                     break;
-                case GAME_STARTED: // TIMER_FPS
+                case GAME_STARTED:
                     break;
-                case ITEM_STARTED: // TIMER_FPS
+                case ITEM_STARTED:
                     break;
-                case BLOCKS_FALLING: // TIMER_1
+                case ITEM_FALLING:
                     fallStep(&ST);
                     break;
-                case BLOCKS_FALLING_FAST: // TIMER_2
+                case ITEM_FALLING_FAST:
                     break;
-                case BLOCKS_STOPPED: // TIMER_2
+                case ITEM_STOPPED:
                     break;
-                case GAME_FINISHED: // TIMER_FPS
+                case GAME_FINISHED:
                     break;
                 }
 
-                timer_tick_finish(&ST.TIMER_1);
+                timer_start(&ST.TIMER_1);
             }
 
             // TIMER_2 handling (100 ms)
@@ -892,28 +1074,28 @@ int main(int argc, char **argv)
                 printf("%s\n", getGameState(ST.GAME_STATE));
                 switch (ST.GAME_STATE)
                 {
-                case GAME_WELCOME: // TIMER_FPS
+                case GAME_WELCOME:
                     break;
-                case GAME_STARTED: // TIMER_FPS
+                case GAME_STARTED:
                     break;
-                case ITEM_STARTED: // TIMER_FPS
+                case ITEM_STARTED:
                     break;
-                case BLOCKS_FALLING: // TIMER_1
+                case ITEM_FALLING:
                     break;
-                case BLOCKS_FALLING_FAST: // TIMER_2
+                case ITEM_FALLING_FAST:
                     fallStep(&ST);
                     break;
-                case BLOCKS_STOPPED: // TIMER_2
+                case ITEM_STOPPED:
                     if (!checkRemoveFullLine(&ST))
                     {
                         ST.GAME_STATE = ITEM_STARTED;
                     }
                     break;
-                case GAME_FINISHED: // TIMER_FPS
+                case GAME_FINISHED:
                     break;
                 }
 
-                timer_tick_finish(&ST.TIMER_2);
+                timer_start(&ST.TIMER_2);
             }
 
             // Process FPS timer
@@ -922,23 +1104,23 @@ int main(int argc, char **argv)
             SDL_RenderFillRect(rend, &rectScr);
 
             /* Draw glass */
-            drawGlass(rend, &ST, &CONF);
+            drawGlass(rend, &ST);
 
             // printf("%s\n", getGameState(ST.GAME_STATE));
             switch (ST.GAME_STATE)
             {
-            case GAME_WELCOME: // TIMER_FPS
+            case GAME_WELCOME:
                 if (put_pressed && !put_processed)
                 {
                     ST.GAME_STATE = GAME_STARTED;
                     put_processed = true;
                 }
                 break;
-            case GAME_STARTED: // TIMER_FPS
+            case GAME_STARTED:
                 clearGlass(&ST);
                 ST.GAME_STATE = ITEM_STARTED;
                 break;
-            case ITEM_STARTED: // TIMER_FPS
+            case ITEM_STARTED:
                 ST.ITEM_ID = rand() % 7;
                 ST.x = (CONF.w - ITEMBLOCKS * ST.block_size) / 2;
                 ST.y = ITEMBLOCKS * ST.block_size / 2;
@@ -948,12 +1130,12 @@ int main(int argc, char **argv)
                 getBottomMargins(&ST);
                 // update state
                 updState(&ST);
-                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+                drawItem(rend, ST.x, ST.y, &ST);
                 SDL_Delay(500);
-                ST.GAME_STATE = BLOCKS_FALLING;
+                ST.GAME_STATE = ITEM_FALLING;
                 break;
-            case BLOCKS_FALLING:      // TIMER_1
-            case BLOCKS_FALLING_FAST: // TIMER_2
+            case ITEM_FALLING:
+            case ITEM_FALLING_FAST:
                 if (left_pressed && !left_processed)
                 {
                     if (!checkItemLeft(&ST))
@@ -980,22 +1162,22 @@ int main(int argc, char **argv)
                 }
                 if (put_pressed && !put_processed)
                 {
-                    ST.GAME_STATE = BLOCKS_FALLING_FAST;
+                    ST.GAME_STATE = ITEM_FALLING_FAST;
                     put_processed = true;
                 }
-                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+                drawItem(rend, ST.x, ST.y, &ST);
                 break;
-            case BLOCKS_STOPPED: // TIMER_2
-                drawItem(rend, ST.x, ST.y, &ST, ST.ITEM_ID);
+            case ITEM_STOPPED:
+                drawItem(rend, ST.x, ST.y, &ST);
                 break;
-            case GAME_FINISHED: // TIMER_FPS
+            case GAME_FINISHED:
                 break;
             }
 
             /* Draw to window and loop */
             SDL_RenderPresent(rend);
 
-            timer_tick_finish(&ST.TIMER_FPS);
+            timer_start(&ST.TIMER_FPS);
         }
         else
         {
