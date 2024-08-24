@@ -1,1 +1,1 @@
-tetris.exe -d 1200 800 -r  
+bin\tetris.exe -d 1200 800 -r  
