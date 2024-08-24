@@ -6,7 +6,7 @@ Mingw32
 SDL2  
 
 ## Compile
-`cmake -G "MinGW Makefiles" -B build
+`cmake -G "MinGW Makefiles" -B build  
 cmake --build build`
 
 ## Usage
