@@ -1,10 +1,9 @@
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <unistd.h>
+// #include <unistd.h>
 #include <windows.h>
 
 /**
@@ -13,8 +12,8 @@
  */
 typedef struct _ttimer
 {
-    uint64_t last; //  Timestamp when the timer was fixed last time (in ms since program start)
-    int ms;        //  Timer value in ms when tick must be triggered
+    DWORD last;     //  Timestamp when the timer was fixed last time (in ms since program start)
+    int ms;         //  Timer value in ms when tick must be triggered
 } tTimer;
 
 /**
@@ -30,7 +29,7 @@ void timer_start(tTimer *t);
  * @param t : Timer
  * @return uint64_t Timer value
  */
-uint64_t timer_check(tTimer *t);
+DWORD timer_check(tTimer *t);
 
 /**
  * @brief Is time to tick the timer?
@@ -47,9 +46,8 @@ bool is_timer_tick(tTimer *t);
  */
 typedef struct _tconfig
 {
-    int _l, _r, _t, _b, _f;
-    int w, h; // Window width, window height
     int x, y; // Coordinates of window left-top corner
+    int w, h; // Window width, window height
 } tConfig;
 
 /**

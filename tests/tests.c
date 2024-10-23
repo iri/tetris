@@ -13,6 +13,7 @@ MU_TEST(test_min4_03) {
 MU_TEST(test_min4_04) {
 	mu_check(min4(0,-4,5,-12) == -12);
 }
+
 MU_TEST(test_max4_01) {
 	mu_check(max4(7,-2,0,5) == 7);
 }
@@ -25,11 +26,14 @@ MU_TEST(test_max4_03) {
 MU_TEST(test_max4_04) {
 	mu_check(max4(1,-2,0,15) == 15);
 }
+
 MU_TEST_SUITE(test_suite_tetris) {
+	// min4()
 	MU_RUN_TEST(test_min4_01);
 	MU_RUN_TEST(test_min4_02);
 	MU_RUN_TEST(test_min4_03);
 	MU_RUN_TEST(test_min4_04);
+	// max4()
 	MU_RUN_TEST(test_max4_01);
 	MU_RUN_TEST(test_max4_02);
 	MU_RUN_TEST(test_max4_03);

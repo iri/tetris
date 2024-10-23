@@ -9,9 +9,6 @@
  */
 int main(int argc, char **argv)
 {
-    tConfig CONF;
-    memset(&CONF, 0, sizeof(CONF));
-
     /* Initializes the timer, audio, video, joystick,
     haptic, gamecontroller and events subsystems */
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
@@ -34,11 +31,17 @@ int main(int argc, char **argv)
         printf("==   %d         %d   %d   %d\n", i, w, h, rr);
     }
 
+
     SDL_GetCurrentDisplayMode(0, &DM);
     printf("==  current    %d   %d   %d\n", DM.w, DM.h, DM.refresh_rate);
 
-    // Parse command line arguments
-    parse_args(argc, argv, &CONF, &DM);
+    tConfig CONF;
+    memset(&CONF, 0, sizeof(CONF));
+    CONF.w = 1200;
+    CONF.h = 800;
+    CONF.x = (DM.w - CONF.w) / 2;
+    CONF.y = (DM.h - CONF.h) / 2;
+    printf("%d   %d    %d    %d\n",CONF.x,CONF.y,CONF.w,CONF.h);
 
     tState ST = {.colors = {{0, 0, 0},      // transparent
                             {228, 26, 28},  // red
@@ -85,12 +88,7 @@ int main(int argc, char **argv)
 
     /* Create a window */
     uint32_t flags = 0;
-    if (CONF._f)
-    {
-        // flags = flags | SDL_WINDOW_FULLSCREEN_DESKTOP;
-        flags = flags | SDL_WINDOW_FULLSCREEN;
-    }
-    SDL_Window *wind = SDL_CreateWindow("Shell0", CONF.x, CONF.y, CONF.w, CONF.h, flags);
+    SDL_Window *wind = SDL_CreateWindow("TETRIS", CONF.x, CONF.y, CONF.w, CONF.h, flags);
     if (!wind)
     {
         printf("Error creating window: %s\n", SDL_GetError());
