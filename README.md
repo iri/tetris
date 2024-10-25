@@ -1,4 +1,4 @@
-# 2djitsu - vehicle kinematics simulator in 2D
+# TETRIS
 ## Prerequisites
 #### Install compiler and libraries
 - Microsoft Visual Studio 2022 C++
