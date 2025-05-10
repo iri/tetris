@@ -1,19 +1,40 @@
 #include "tetris.h"
 
-void timer_start(tTimer *t)
+/**
+ * @brief Starts a timer by recording the current tick count
+ * @param t Pointer to the timer structure to initialize
+ */
+void timer_start(tTimer* t)
 {
     t->last = GetTickCount();
 }
-DWORD timer_check(tTimer *t)
+
+/**
+ * @brief Checks how many milliseconds have elapsed since the timer started
+ * @param t Pointer to the timer structure
+ * @return Number of milliseconds elapsed
+ */
+DWORD timer_check(tTimer* t)
 {
     return GetTickCount() - t->last;
 }
-bool is_timer_tick(tTimer *t)
+
+/**
+ * @brief Checks if the timer has reached its specified interval
+ * @param t Pointer to the timer structure
+ * @return true if the timer interval has elapsed, false otherwise
+ */
+bool is_timer_tick(tTimer* t)
 {
     return (GetTickCount() - t->last) >= t->ms;
 }
 
-const char *getGameState(tGameState state)
+/**
+ * @brief Converts a game state enum to its string representation
+ * @param state The game state to convert
+ * @return String representation of the game state
+ */
+const char* getGameState(tGameState state)
 {
     switch (state)
     {
@@ -35,6 +56,14 @@ const char *getGameState(tGameState state)
     return "invalid status";
 }
 
+/**
+ * @brief Finds the minimum value among four integers
+ * @param a First number
+ * @param b Second number
+ * @param c Third number
+ * @param d Fourth number
+ * @return The minimum value among the four numbers
+ */
 int8_t min4(int8_t a, int8_t b, int8_t c, int8_t d)
 {
     int8_t min = a;
@@ -55,6 +84,14 @@ int8_t min4(int8_t a, int8_t b, int8_t c, int8_t d)
     return min;
 }
 
+/**
+ * @brief Finds the maximum value among four integers
+ * @param a First number
+ * @param b Second number
+ * @param c Third number
+ * @param d Fourth number
+ * @return The maximum value among the four numbers
+ */
 int8_t max4(int8_t a, int8_t b, int8_t c, int8_t d)
 {
     int8_t max = a;
@@ -75,13 +112,21 @@ int8_t max4(int8_t a, int8_t b, int8_t c, int8_t d)
     return max;
 }
 
-void updState(tState *ST)
+/**
+ * @brief Updates the grid coordinates based on current position
+ * @param ST Pointer to the game state structure
+ */
+void updState(tState* ST)
 {
     ST->gx = (ST->x - ST->glass_x) / ST->block_size;
     ST->gy = (ST->y - ST->glass_y) / ST->block_size;
 }
 
-void getBottomMargins(tState *ST)
+/**
+ * @brief Calculates the bottom margins for each column of the current tetromino
+ * @param ST Pointer to the game state structure
+ */
+void getBottomMargins(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
@@ -95,7 +140,11 @@ void getBottomMargins(tState *ST)
     }
 }
 
-void getLeftMargins(tState *ST)
+/**
+ * @brief Calculates the left margins for each row of the current tetromino
+ * @param ST Pointer to the game state structure
+ */
+void getLeftMargins(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
@@ -109,7 +158,11 @@ void getLeftMargins(tState *ST)
     }
 }
 
-void getRightMargins(tState *ST)
+/**
+ * @brief Calculates the right margins for each row of the current tetromino
+ * @param ST Pointer to the game state structure
+ */
+void getRightMargins(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
@@ -123,7 +176,12 @@ void getRightMargins(tState *ST)
     }
 }
 
-bool checkItemLeft(tState *ST)
+/**
+ * @brief Checks if the current tetromino can move left
+ * @param ST Pointer to the game state structure
+ * @return true if movement is blocked, false if movement is possible
+ */
+bool checkItemLeft(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
@@ -138,9 +196,13 @@ bool checkItemLeft(tState *ST)
     return false;
 }
 
-bool checkItemRight(tState *ST)
+/**
+ * @brief Checks if the current tetromino can move right
+ * @param ST Pointer to the game state structure
+ * @return true if movement is blocked, false if movement is possible
+ */
+bool checkItemRight(tState* ST)
 {
-
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
         if (ST->marg_right[i] >= 0)
@@ -155,43 +217,12 @@ bool checkItemRight(tState *ST)
     return false;
 }
 
-// int checkItemLeftInt(tState *ST, int gx_min)
-// {
-//     int r = 100;
-//     int r1;
-//     for (int i = 0; i < ITEMBLOCKS; i++)
-//     {
-//         if (ST->marg_left[i] >= 0)
-//         {
-//             r1 = ST->gx + ST->marg_left[i] - gx_min;
-//             if (r1 < r)
-//             {
-//                 r = r1;
-//             }
-//         }
-//     }
-//     return r;
-// }
-
-// int checkItemRightInt(tState *ST, int gx_max)
-// {
-//     int r = -100;
-//     int r1;
-//     for (int i = 0; i < ITEMBLOCKS; i++)
-//     {
-//         if (ST->marg_right[i] >= 0)
-//         {
-//             r1 = gx_max - (ST->gx + ST->marg_right[i]);
-//             if (r1 > r)
-//             {
-//                 r = r1;
-//             }
-//         }
-//     }
-//     return r;
-// }
-
-bool checkItemBottom(tState *ST)
+/**
+ * @brief Checks if the current tetromino can move down
+ * @param ST Pointer to the game state structure
+ * @return true if movement is blocked, false if movement is possible
+ */
+bool checkItemBottom(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
@@ -206,9 +237,13 @@ bool checkItemBottom(tState *ST)
     return false;
 }
 
-void rotateItem(tState *ST)
+/**
+ * @brief Rotates the current tetromino 90 degrees clockwise
+ * @param ST Pointer to the game state structure
+ */
+void rotateItem(tState* ST)
 {
-    int8_t *mat = ST->items[ST->ITEM_ID];
+    int8_t* mat = ST->items[ST->ITEM_ID];
     for (int8_t i = 0; i < ITEMBLOCKS / 2; i++)
     {
         for (int8_t j = i; j < ITEMBLOCKS - i - 1; j++)
@@ -239,26 +274,6 @@ void rotateItem(tState *ST)
     getRightMargins(ST);
     getBottomMargins(ST);
 
-    // printf("====::  %d   %d\n", checkItemLeftInt(ST, 0), checkItemRightInt(ST, GLASS_W - 1));
-    // bool clr = false;
-    // while (!clr)
-    // {
-    //     if (checkItemLeftInt(ST, 0) < 0)
-    //     {
-    //         ST->x += ST->block_size;
-    //         updState(ST);
-    //     }
-    //     else if (checkItemRightInt(ST, GLASS_W - 1) < 0)
-    //     {
-    //         ST->x -= ST->block_size;
-    //         updState(ST);
-    //     }
-    //     else
-    //     {
-    //         clr = true;
-    //     }
-    // }
-
     for (int i = 0; i < ITEMBLOCKS; i++)
     {
         if (ST->marg_left[i] != 4 && ST->marg_right[i] != -1)
@@ -269,9 +284,13 @@ void rotateItem(tState *ST)
     }
 }
 
-void printItem(tState *ST)
+/**
+ * @brief Prints the current tetromino matrix for debugging
+ * @param ST Pointer to the game state structure
+ */
+void printItem(tState* ST)
 {
-    int8_t *mat = ST->items[ST->ITEM_ID];
+    int8_t* mat = ST->items[ST->ITEM_ID];
     for (int8_t i = 0; i < ITEMBLOCKS; i++)
     {
         for (int8_t j = 0; j < ITEMBLOCKS; j++)
@@ -282,7 +301,11 @@ void printItem(tState *ST)
     }
 }
 
-void copyBlocksToGlass(tState *ST)
+/**
+ * @brief Copies the current tetromino blocks to the game glass
+ * @param ST Pointer to the game state structure
+ */
+void copyBlocksToGlass(tState* ST)
 {
     // copy stopped item blocks to glass
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -297,7 +320,11 @@ void copyBlocksToGlass(tState *ST)
     }
 }
 
-void printGlass(tState *ST)
+/**
+ * @brief Prints the current state of the game glass for debugging
+ * @param ST Pointer to the game state structure
+ */
+void printGlass(tState* ST)
 {
     for (int i = 0; i < GLASS_H; i++)
     {
@@ -310,7 +337,12 @@ void printGlass(tState *ST)
     printf("\n");
 }
 
-void removeFullLine(tState *ST, int line)
+/**
+ * @brief Removes a full line and shifts all lines above it down
+ * @param ST Pointer to the game state structure
+ * @param line The line number to remove
+ */
+void removeFullLine(tState* ST, int line)
 {
     int fullCells;
     do
@@ -325,9 +357,13 @@ void removeFullLine(tState *ST, int line)
     } while (fullCells != 0 && line > 0);
 }
 
-bool checkRemoveFullLine(tState *ST)
+/**
+ * @brief Checks for and removes any full lines in the game glass
+ * @param ST Pointer to the game state structure
+ * @return true if a line was removed, false otherwise
+ */
+bool checkRemoveFullLine(tState* ST)
 {
-    // printGlass(ST);
     int emptyCells;
     for (int i = GLASS_H - 1; i >= 0; i--)
     {
@@ -349,14 +385,20 @@ bool checkRemoveFullLine(tState *ST)
     return false;
 }
 
-
-void drawItem(SDL_Renderer *rend, int x, int y, tState *ST)
+/**
+ * @brief Draws the current tetromino on the screen
+ * @param rend SDL renderer pointer
+ * @param x X coordinate for drawing
+ * @param y Y coordinate for drawing
+ * @param ST Pointer to the game state structure
+ */
+void drawItem(SDL_Renderer* rend, int x, int y, tState* ST)
 {
     if (ST->GAME_STATE != ITEM_FALLING && ST->GAME_STATE != ITEM_FALLING_FAST)
     {
         return;
     }
-    SDL_Rect rect = {x, y, ST->block_size, ST->block_size};
+    SDL_Rect rect = { x, y, ST->block_size, ST->block_size };
     int e;
     for (int8_t i = 0; i < ITEMBLOCKS; i++)
     {
@@ -387,19 +429,22 @@ void drawItem(SDL_Renderer *rend, int x, int y, tState *ST)
     }
 }
 
-void drawGlass(SDL_Renderer *rend, tState *ST)
+/**
+ * @brief Draws the game glass and all placed blocks
+ * @param rend SDL renderer pointer
+ * @param ST Pointer to the game state structure
+ */
+void drawGlass(SDL_Renderer* rend, tState* ST)
 {
-    SDL_Rect rect = {ST->glass_x, ST->glass_y, ST->glass_w, ST->glass_h};
+    SDL_Rect rect = { ST->glass_x, ST->glass_y, ST->glass_w, ST->glass_h };
     SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
     SDL_RenderFillRect(rend, &rect);
 
-    // printf("\n\n");
     for (int i = 0; i < GLASS_H; i++)
     {
         for (int j = 0; j < GLASS_W; j++)
         {
             int e = ST->glass[i][j];
-            // printf("%d ", e);
             if (e > 0)
             {
                 rect.w = ST->block_size;
@@ -410,11 +455,14 @@ void drawGlass(SDL_Renderer *rend, tState *ST)
                 SDL_RenderFillRect(rend, &rect);
             }
         }
-        // printf("\n");
     }
 }
 
-void clearGlass(tState *ST)
+/**
+ * @brief Clears all blocks from the game glass
+ * @param ST Pointer to the game state structure
+ */
+void clearGlass(tState* ST)
 {
     for (int i = 0; i < GLASS_H; i++)
     {
@@ -425,7 +473,11 @@ void clearGlass(tState *ST)
     }
 }
 
-void fallStep(tState *ST)
+/**
+ * @brief Handles one step of tetromino falling movement
+ * @param ST Pointer to the game state structure
+ */
+void fallStep(tState* ST)
 {
     if (checkItemBottom(ST))
     {
