@@ -1,39 +1,20 @@
 #include "tetris.h"
 
-/**
- * @brief Starts a timer by recording the current tick count
- * @param t Pointer to the timer structure to initialize
- */
 void timer_start(tTimer* t)
 {
     t->last = GetTickCount();
 }
 
-/**
- * @brief Checks how many milliseconds have elapsed since the timer started
- * @param t Pointer to the timer structure
- * @return Number of milliseconds elapsed
- */
 DWORD timer_check(tTimer* t)
 {
     return GetTickCount() - t->last;
 }
 
-/**
- * @brief Checks if the timer has reached its specified interval
- * @param t Pointer to the timer structure
- * @return true if the timer interval has elapsed, false otherwise
- */
 bool is_timer_tick(tTimer* t)
 {
     return (GetTickCount() - t->last) >= t->ms;
 }
 
-/**
- * @brief Converts a game state enum to its string representation
- * @param state The game state to convert
- * @return String representation of the game state
- */
 const char* getGameState(tGameState state)
 {
     switch (state)
@@ -56,14 +37,6 @@ const char* getGameState(tGameState state)
     return "invalid status";
 }
 
-/**
- * @brief Finds the minimum value among four integers
- * @param a First number
- * @param b Second number
- * @param c Third number
- * @param d Fourth number
- * @return The minimum value among the four numbers
- */
 int8_t min4(int8_t a, int8_t b, int8_t c, int8_t d)
 {
     int8_t min = a;
@@ -84,14 +57,6 @@ int8_t min4(int8_t a, int8_t b, int8_t c, int8_t d)
     return min;
 }
 
-/**
- * @brief Finds the maximum value among four integers
- * @param a First number
- * @param b Second number
- * @param c Third number
- * @param d Fourth number
- * @return The maximum value among the four numbers
- */
 int8_t max4(int8_t a, int8_t b, int8_t c, int8_t d)
 {
     int8_t max = a;
@@ -112,20 +77,12 @@ int8_t max4(int8_t a, int8_t b, int8_t c, int8_t d)
     return max;
 }
 
-/**
- * @brief Updates the grid coordinates based on current position
- * @param ST Pointer to the game state structure
- */
 void updState(tState* ST)
 {
     ST->gx = (ST->x - ST->glass_x) / ST->block_size;
     ST->gy = (ST->y - ST->glass_y) / ST->block_size;
 }
 
-/**
- * @brief Calculates the bottom margins for each column of the current tetromino
- * @param ST Pointer to the game state structure
- */
 void getBottomMargins(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -140,10 +97,6 @@ void getBottomMargins(tState* ST)
     }
 }
 
-/**
- * @brief Calculates the left margins for each row of the current tetromino
- * @param ST Pointer to the game state structure
- */
 void getLeftMargins(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -158,10 +111,6 @@ void getLeftMargins(tState* ST)
     }
 }
 
-/**
- * @brief Calculates the right margins for each row of the current tetromino
- * @param ST Pointer to the game state structure
- */
 void getRightMargins(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -176,11 +125,6 @@ void getRightMargins(tState* ST)
     }
 }
 
-/**
- * @brief Checks if the current tetromino can move left
- * @param ST Pointer to the game state structure
- * @return true if movement is blocked, false if movement is possible
- */
 bool checkItemLeft(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -196,11 +140,6 @@ bool checkItemLeft(tState* ST)
     return false;
 }
 
-/**
- * @brief Checks if the current tetromino can move right
- * @param ST Pointer to the game state structure
- * @return true if movement is blocked, false if movement is possible
- */
 bool checkItemRight(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -217,11 +156,6 @@ bool checkItemRight(tState* ST)
     return false;
 }
 
-/**
- * @brief Checks if the current tetromino can move down
- * @param ST Pointer to the game state structure
- * @return true if movement is blocked, false if movement is possible
- */
 bool checkItemBottom(tState* ST)
 {
     for (int i = 0; i < ITEMBLOCKS; i++)
@@ -237,10 +171,6 @@ bool checkItemBottom(tState* ST)
     return false;
 }
 
-/**
- * @brief Rotates the current tetromino 90 degrees clockwise
- * @param ST Pointer to the game state structure
- */
 void rotateItem(tState* ST)
 {
     int8_t* mat = ST->items[ST->ITEM_ID];
@@ -273,21 +203,8 @@ void rotateItem(tState* ST)
     getLeftMargins(ST);
     getRightMargins(ST);
     getBottomMargins(ST);
-
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        if (ST->marg_left[i] != 4 && ST->marg_right[i] != -1)
-        {
-            printf("%d        %d   %d      %d  %d\n", i, ST->marg_left[i], ST->marg_right[i], checkItemLeft(ST),
-                   checkItemRight(ST));
-        }
-    }
 }
 
-/**
- * @brief Prints the current tetromino matrix for debugging
- * @param ST Pointer to the game state structure
- */
 void printItem(tState* ST)
 {
     int8_t* mat = ST->items[ST->ITEM_ID];
@@ -301,10 +218,6 @@ void printItem(tState* ST)
     }
 }
 
-/**
- * @brief Copies the current tetromino blocks to the game glass
- * @param ST Pointer to the game state structure
- */
 void copyBlocksToGlass(tState* ST)
 {
     // copy stopped item blocks to glass
@@ -320,10 +233,6 @@ void copyBlocksToGlass(tState* ST)
     }
 }
 
-/**
- * @brief Prints the current state of the game glass for debugging
- * @param ST Pointer to the game state structure
- */
 void printGlass(tState* ST)
 {
     for (int i = 0; i < GLASS_H; i++)
@@ -337,11 +246,6 @@ void printGlass(tState* ST)
     printf("\n");
 }
 
-/**
- * @brief Removes a full line and shifts all lines above it down
- * @param ST Pointer to the game state structure
- * @param line The line number to remove
- */
 void removeFullLine(tState* ST, int line)
 {
     int fullCells;
@@ -357,11 +261,6 @@ void removeFullLine(tState* ST, int line)
     } while (fullCells != 0 && line > 0);
 }
 
-/**
- * @brief Checks for and removes any full lines in the game glass
- * @param ST Pointer to the game state structure
- * @return true if a line was removed, false otherwise
- */
 bool checkRemoveFullLine(tState* ST)
 {
     int emptyCells;
@@ -385,13 +284,6 @@ bool checkRemoveFullLine(tState* ST)
     return false;
 }
 
-/**
- * @brief Draws the current tetromino on the screen
- * @param rend SDL renderer pointer
- * @param x X coordinate for drawing
- * @param y Y coordinate for drawing
- * @param ST Pointer to the game state structure
- */
 void drawItem(SDL_Renderer* rend, int x, int y, tState* ST)
 {
     if (ST->GAME_STATE != ITEM_FALLING && ST->GAME_STATE != ITEM_FALLING_FAST)
@@ -414,26 +306,8 @@ void drawItem(SDL_Renderer* rend, int x, int y, tState* ST)
             }
         }
     }
-
-    rect.w = ST->block_size - 20;
-    rect.h = ST->block_size - 20;
-    for (int i = 0; i < ITEMBLOCKS; i++)
-    {
-        if (ST->marg_bottom[i] > -1)
-        {
-            rect.y = ST->y + ST->marg_bottom[i] * ST->block_size + 10;
-            rect.x = ST->x + i * ST->block_size + 10;
-            SDL_SetRenderDrawColor(rend, 255, 0, 0, 255);
-            SDL_RenderFillRect(rend, &rect);
-        }
-    }
 }
 
-/**
- * @brief Draws the game glass and all placed blocks
- * @param rend SDL renderer pointer
- * @param ST Pointer to the game state structure
- */
 void drawGlass(SDL_Renderer* rend, tState* ST)
 {
     SDL_Rect rect = { ST->glass_x, ST->glass_y, ST->glass_w, ST->glass_h };
@@ -458,10 +332,6 @@ void drawGlass(SDL_Renderer* rend, tState* ST)
     }
 }
 
-/**
- * @brief Clears all blocks from the game glass
- * @param ST Pointer to the game state structure
- */
 void clearGlass(tState* ST)
 {
     for (int i = 0; i < GLASS_H; i++)
@@ -473,10 +343,6 @@ void clearGlass(tState* ST)
     }
 }
 
-/**
- * @brief Handles one step of tetromino falling movement
- * @param ST Pointer to the game state structure
- */
 void fallStep(tState* ST)
 {
     if (checkItemBottom(ST))
@@ -489,5 +355,80 @@ void fallStep(tState* ST)
         ST->y += ST->block_size;
         updState(ST);
     }
+}
+
+void drawWelcomeScreen(SDL_Renderer* rend, tState* ST)
+{
+    // Try multiple possible font paths
+    const char* font_paths[] = {
+        FONT_PATH,
+        "src/" FONT_PATH,
+        "../src/" FONT_PATH,
+        NULL
+    };
+    
+    TTF_Font* title_font = NULL;
+    TTF_Font* subtitle_font = NULL;
+    
+    // Try to load font from different possible locations
+    for (int i = 0; font_paths[i] != NULL; i++)
+    {
+        title_font = TTF_OpenFont(font_paths[i], TITLE_FONT_SIZE);
+        subtitle_font = TTF_OpenFont(font_paths[i], SUBTITLE_FONT_SIZE);
+        if (title_font && subtitle_font)
+        {
+            break; // Successfully loaded
+        }
+        // Clean up if partially loaded
+        if (title_font) TTF_CloseFont(title_font);
+        if (subtitle_font) TTF_CloseFont(subtitle_font);
+        title_font = NULL;
+        subtitle_font = NULL;
+    }
+    
+    if (!title_font || !subtitle_font)
+    {
+        // If font loading fails, just return (game will still work without text)
+        if (title_font) TTF_CloseFont(title_font);
+        if (subtitle_font) TTF_CloseFont(subtitle_font);
+        return;
+    }
+    
+    SDL_Color text_color = {255, 255, 255, 255}; // White color
+    
+    // Render title "TETRIS"
+    SDL_Surface* title_surface = TTF_RenderText_Solid(title_font, "TETRIS", text_color);
+    if (title_surface)
+    {
+        SDL_Texture* title_texture = SDL_CreateTextureFromSurface(rend, title_surface);
+        if (title_texture)
+        {
+            int title_w, title_h;
+            SDL_QueryTexture(title_texture, NULL, NULL, &title_w, &title_h);
+            SDL_Rect title_rect = {(1200 - title_w) / 2, 250, title_w, title_h};
+            SDL_RenderCopy(rend, title_texture, NULL, &title_rect);
+            SDL_DestroyTexture(title_texture);
+        }
+        SDL_FreeSurface(title_surface);
+    }
+    
+    // Render subtitle "Press SPACE to start"
+    SDL_Surface* subtitle_surface = TTF_RenderText_Solid(subtitle_font, "Press SPACE to start", text_color);
+    if (subtitle_surface)
+    {
+        SDL_Texture* subtitle_texture = SDL_CreateTextureFromSurface(rend, subtitle_surface);
+        if (subtitle_texture)
+        {
+            int subtitle_w, subtitle_h;
+            SDL_QueryTexture(subtitle_texture, NULL, NULL, &subtitle_w, &subtitle_h);
+            SDL_Rect subtitle_rect = {(1200 - subtitle_w) / 2, 400, subtitle_w, subtitle_h};
+            SDL_RenderCopy(rend, subtitle_texture, NULL, &subtitle_rect);
+            SDL_DestroyTexture(subtitle_texture);
+        }
+        SDL_FreeSurface(subtitle_surface);
+    }
+    
+    TTF_CloseFont(title_font);
+    TTF_CloseFont(subtitle_font);
 }
 

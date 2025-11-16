@@ -1,10 +1,16 @@
 #include <SDL.h>
+#include <SDL_ttf.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 // #include <unistd.h>
 #include <windows.h>
+
+// Font-related declarations
+#define FONT_PATH "spaceboy.ttf"
+#define TITLE_FONT_SIZE 72
+#define SUBTITLE_FONT_SIZE 36
 
 /**
  * @brief Timer data structure type
@@ -115,7 +121,7 @@ typedef struct _tstate
     tTimer TIMER_2;                                  // Timer for fast falling (100 ms by default)
     int ITEM_ID;                                     // Current item
     int glass_x, glass_y;                            // Position of left top corner of glass (in px)
-    int glass_w, glass_h;                            // Wisth and heightr of glass (in px)
+    int glass_w, glass_h;                            // Width and height of glass (in px)
     uint8_t glass[GLASS_H][GLASS_W];                 // Array for blocks in the glass
     int x, y;                                        // Coordinates of the falling item's left-up corner
     int gx, gy;                     // Glass position corresponding to the left-up block of the item (in blocks)
@@ -132,7 +138,7 @@ typedef struct _tstate
 int8_t min4(int8_t a, int8_t b, int8_t c, int8_t d);
 
 /**
- * @brief Find the mfximum of the 4 values
+ * @brief Find the maximum of the 4 values
  *
  * @return int8_t : Maximum value
  */
@@ -185,7 +191,7 @@ bool checkItemLeft(tState *ST);
 bool checkItemRight(tState *ST);
 
 /**
- * @brief Check the touch of the bottim margins of the item
+ * @brief Check the touch of the bottom margins of the item
  *
  * @param ST : State data structure
  * @return true
@@ -304,4 +310,12 @@ void clearGlass(tState *ST);
  * @param ST : State data structure
  */
 void fallStep(tState *ST);
+
+/**
+ * @brief Draw welcome screen with title and subtitle
+ * 
+ * @param rend : Renderer data structure
+ * @param ST : State data structure
+ */
+void drawWelcomeScreen(SDL_Renderer* rend, tState* ST);
 

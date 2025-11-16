@@ -26,6 +26,7 @@ target_link_libraries(tetris
     mingw32 
     SDL2main 
     SDL2 
+    SDL2_ttf
 )
 
 add_custom_target(format

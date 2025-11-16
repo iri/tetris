@@ -1,4 +1,5 @@
 #include "tetris.h"
+#include <string.h>
 
 /**
  * @brief Main program
@@ -14,6 +15,13 @@ int main(int argc, char **argv)
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
     {
         printf("Error initializing SDL: %s\n", SDL_GetError());
+        return 0;
+    }
+
+    // Initialize SDL_ttf
+    if (TTF_Init() == -1) {
+        printf("TTF_Init: %s\n", TTF_GetError());
+        SDL_Quit();
         return 0;
     }
 
@@ -139,6 +147,9 @@ int main(int argc, char **argv)
                     running = false;
                     break;
                 case SDL_SCANCODE_SPACE:
+                    if (ST.GAME_STATE == GAME_WELCOME) {
+                        ST.GAME_STATE = GAME_STARTED;
+                    }
                     put_pressed = true;
                     break;
                 case SDL_SCANCODE_A:
@@ -257,15 +268,10 @@ int main(int argc, char **argv)
             /* Draw glass */
             drawGlass(rend, &ST);
 
-            // printf("%s\n", getGameState(ST.GAME_STATE));
             switch (ST.GAME_STATE)
             {
             case GAME_WELCOME:
-                if (put_pressed && !put_processed)
-                {
-                    ST.GAME_STATE = GAME_STARTED;
-                    put_processed = true;
-                }
+                drawWelcomeScreen(rend, &ST);
                 break;
             case GAME_STARTED:
                 clearGlass(&ST);
@@ -337,6 +343,7 @@ int main(int argc, char **argv)
     }
 
     /* Release resources */
+    TTF_Quit();
     SDL_DestroyRenderer(rend);
     SDL_DestroyWindow(wind);
     SDL_Quit();
